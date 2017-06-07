@@ -114,7 +114,7 @@ function parseModule (row) {
       shouldWrap
         ? 'var ' + moduleExportsName + ' = { exports: {} }; (function(module,exports){' +
             ast +
-          '})(' + moduleExportsName + ',' + moduleExportsName + '.exports);' + moduleExportsName + ' = ' + moduleExportsName + '.exports;'
+          '\n})(' + moduleExportsName + ',' + moduleExportsName + '.exports);' + moduleExportsName + ' = ' + moduleExportsName + '.exports;'
         : 'var ' + moduleExportsName + ' = {};' + ast
     )
   }
@@ -159,7 +159,7 @@ function flatten (rows, opts) {
   var umdOpts = { commonJS: true }
   return opts.standalone
     ? umd.prelude(opts.standalone, umdOpts) + modules.join('\n') + umd.postlude(opts.standalone, umdOpts)
-    : '(function(){' + modules.join('\n') + '}());'
+    : '(function(){' + modules.join('\n') + '\n}());'
 }
 
 module.exports = function browserPackFlat(opts) {
