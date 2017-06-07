@@ -43,7 +43,8 @@ function isModuleVariable (node) {
   if (node.type === 'Identifier' && node.parent.type === 'FunctionDeclaration') {
     return isInModuleScope(node.parent, false)
   }
-  if (node.type === 'Identifier' && node.parent.type === 'VariableDeclarator') {
+  if (node.type === 'Identifier' && node.parent.type === 'VariableDeclarator' &&
+      node.parent.id === node) {
     return isInModuleScope(node.parent, node.parent.parent.kind !== 'var')
   }
   return false
