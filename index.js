@@ -1,4 +1,5 @@
 var falafel = require('falafel')
+var through = require('through2')
 
 function isModuleExports (node) {
   return node.type === 'MemberExpression' &&
@@ -86,4 +87,17 @@ function flatten (rows) {
   return '(function(){' + modules.join('\n') + '})();'
 }
 
-module.exports = flatten
+module.exports = function browserPackFlat() {
+  var rows = []
+  return through.obj(function (row, enc, cb) {
+    rows.push(row)
+    cb(null)
+  }, function (cb) {
+    try {
+      this.push(flatten(rows))
+      cb(null)
+    } catch (err) {
+      cb(err)
+    }
+  })
+}
