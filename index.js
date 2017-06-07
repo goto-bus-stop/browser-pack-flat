@@ -1,5 +1,6 @@
 var falafel = require('falafel')
 var through = require('through2')
+var umd = require('umd')
 
 function isModuleExports (node) {
   return node.type === 'MemberExpression' &&
@@ -125,7 +126,7 @@ function sort (rows) {
   return sorted
 }
 
-function flatten (rows) {
+function flatten (rows, opts) {
   rows = sort(rows)
 
   var modules = rows.map(parseModule).map(function (row) {
@@ -138,17 +139,20 @@ function flatten (rows) {
     }
   }
 
-  return '(function(){' + modules.join('\n') + '})();'
+  var umdOpts = { commonJS: true }
+  return opts.standalone
+    ? umd.prelude(opts.standalone, umdOpts) + modules.join('\n') + umd.postlude(opts.standalone, umdOpts)
+    : modules.join('\n')
 }
 
-module.exports = function browserPackFlat() {
+module.exports = function browserPackFlat(opts) {
   var rows = []
   return through.obj(function (row, enc, cb) {
     rows.push(row)
     cb(null)
   }, function (cb) {
     try {
-      this.push(flatten(rows))
+      this.push(flatten(rows, opts || {}))
       cb(null)
     } catch (err) {
       cb(err)
