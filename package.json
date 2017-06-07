@@ -5,7 +5,9 @@
   "main": "index.js",
   "bin": "cli.js",
   "scripts": {
-    "test": "node test"
+    "test:self": "node test/self.js",
+    "test:test": "node test/test.js",
+    "test": "npm run test:test && npm run test:self"
   },
   "keywords": [],
   "author": "",
