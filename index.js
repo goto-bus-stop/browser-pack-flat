@@ -49,15 +49,15 @@ var dedupedRx = /^arguments\[4\]\[(\d+)\]/
 
 function parseModule (row) {
   var moduleExportsName = row.exportsName = '__module_' + row.id
-  var moduleExportsList = []
-  var exportsList = []
-  var globals = {}
-  var identifiers = {}
-  var shouldWrap = false
   if (dedupedRx.test(row.source)) {
     var n = row.source.match(dedupedRx)[1]
     row.source = 'var ' + moduleExportsName + ' = __module_' + n + ';'
   } else {
+    var moduleExportsList = []
+    var exportsList = []
+    var globals = {}
+    var identifiers = {}
+    var shouldWrap = false
     var ast = falafel(row.source, function (node) {
       if (isModuleExports(node)) {
         moduleExportsList.push(node)
@@ -93,6 +93,7 @@ function parseModule (row) {
       })
     }
 
+    row.hasExports = (moduleExportsList.length + exportsList.length) > 0
     row.source = (
       shouldWrap
         ? 'var ' + moduleExportsName + ' = { exports: {} }; (function(module,exports){' +
@@ -134,7 +135,7 @@ function flatten (rows, opts) {
   })
 
   for (var i = 0; i < rows.length; i++) {
-    if (rows[i].entry) {
+    if (rows[i].entry && rows[i].hasExports) {
       modules.push('module.exports = ' + rows[i].exportsName)
     }
   }
