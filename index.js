@@ -7,12 +7,41 @@ function isModuleExports (node) {
     node.property.type === 'Identifier' && node.property.name === 'exports'
 }
 function isExports (node) {
-  return node.type === 'Identifier' && node.name === 'exports' &&
-    (node.parent.type !== 'MemberExpression' || node.parent.object === node)
+  return isFreeIdentifier(node) && node.name === 'exports'
 }
 function isRequire (node) {
   return node.type === 'CallExpression' &&
     node.callee.type === 'Identifier' && node.callee.name === 'require'
+}
+function isObjectKey (node) {
+  return node.parent.type === 'Property' && node.parent.key === node
+}
+function isFreeIdentifier (node) {
+  return node.type === 'Identifier' &&
+    !isObjectKey(node) &&
+    (node.parent.type !== 'MemberExpression' || node.parent.object === node ||
+      (node.parent.property === node && node.parent.computed))
+}
+function isInModuleScope (node, lex) {
+  var parent = node.parent
+  do {
+    if (parent.type === 'FunctionDeclaration' || parent.type === 'FunctionExpression' || parent.type === 'ArrowFunctionExpression') {
+      return false
+    }
+    if (lex && parent.type === 'BlockStatement') {
+      return false
+    }
+  } while ((parent = parent.parent))
+  return true
+}
+function isModuleVariable (node) {
+  if (node.type === 'Identifier' && node.parent.type === 'FunctionDeclaration') {
+    return isInModuleScope(node.parent, false)
+  }
+  if (node.type === 'Identifier' && node.parent.type === 'VariableDeclarator') {
+    return isInModuleScope(node.parent, node.parent.parent.kind !== 'var')
+  }
+  return false
 }
 
 var dedupedRx = /^arguments\[4\]\[(\d+)\]/
@@ -21,6 +50,8 @@ function parseModule (row) {
   var moduleExportsName = '__module_' + row.id
   var moduleExportsList = []
   var exportsList = []
+  var globals = {}
+  var identifiers = {}
   var shouldWrap = false
   if (dedupedRx.test(row.source)) {
     var n = row.source.match(dedupedRx)[1]
@@ -33,7 +64,19 @@ function parseModule (row) {
         exportsList.push(node)
       } else if (isRequire(node)) {
         var required = node.arguments[0].value
-        node.update('__module_' + row.deps[required])
+        if (row.deps[required]) node.update('__module_' + row.deps[required])
+      } else {
+        if (isFreeIdentifier(node)) {
+          var name = node.name
+          if (!Array.isArray(identifiers[name])) {
+            identifiers[name] = [node]
+          } else {
+            identifiers[name].push(node)
+          }
+        }
+        if (isModuleVariable(node)) {
+          globals[node.name] = true
+        }
       }
     })
 
@@ -41,6 +84,11 @@ function parseModule (row) {
     if (!shouldWrap) {
       moduleExportsList.concat(exportsList).forEach(function (node) {
         node.update(moduleExportsName)
+      })
+      Object.keys(globals).forEach(function (name) {
+        identifiers[name].forEach(function (node) {
+          node.update('__' + node.name + '_' + row.id)
+        })
       })
     }
 
