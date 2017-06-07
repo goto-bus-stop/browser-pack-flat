@@ -142,7 +142,7 @@ function flatten (rows, opts) {
   var umdOpts = { commonJS: true }
   return opts.standalone
     ? umd.prelude(opts.standalone, umdOpts) + modules.join('\n') + umd.postlude(opts.standalone, umdOpts)
-    : modules.join('\n')
+    : '(function(){' + modules.join('\n') + '}());'
 }
 
 module.exports = function browserPackFlat(opts) {
