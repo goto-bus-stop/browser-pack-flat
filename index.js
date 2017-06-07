@@ -5,7 +5,8 @@ var umd = require('umd')
 function isModuleExports (node) {
   return node.type === 'MemberExpression' &&
     node.object.type === 'Identifier' && node.object.name === 'module' &&
-    node.property.type === 'Identifier' && node.property.name === 'exports'
+    (node.property.type === 'Identifier' && node.property.name === 'exports' ||
+      node.property.type === 'StringLiteral' && node.property.value === 'exports')
 }
 function isModule (node) {
   return isFreeIdentifier(node) && node.name === 'module' &&
