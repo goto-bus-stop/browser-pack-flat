@@ -7,6 +7,10 @@ function isModuleExports (node) {
     node.object.type === 'Identifier' && node.object.name === 'module' &&
     node.property.type === 'Identifier' && node.property.name === 'exports'
 }
+function isModule (node) {
+  return isFreeIdentifier(node) && node.name === 'module' &&
+    !isModuleExports(node.parent)
+}
 function isExports (node) {
   return isFreeIdentifier(node) && node.name === 'exports'
 }
@@ -53,6 +57,7 @@ function parseModule (row) {
     var n = row.source.match(dedupedRx)[1]
     row.source = 'var ' + moduleExportsName + ' = __module_' + n + ';'
   } else {
+    var moduleList = []
     var moduleExportsList = []
     var exportsList = []
     var globals = {}
@@ -66,6 +71,8 @@ function parseModule (row) {
       } else if (isRequire(node)) {
         var required = node.arguments[0].value
         if (row.deps[required]) node.update('__module_' + row.deps[required])
+      } else if (isModule(node)) {
+        moduleList.push(node)
       } else {
         if (isFreeIdentifier(node)) {
           var name = node.name
@@ -85,6 +92,13 @@ function parseModule (row) {
     if (!shouldWrap) {
       moduleExportsList.concat(exportsList).forEach(function (node) {
         node.update(moduleExportsName)
+      })
+      moduleList.forEach(function (node) {
+        if (node.parent.type === 'UnaryExpression' && node.parent.operator === 'typeof') {
+          node.update('"object"')
+        } else {
+          node.update('({exports:' + moduleExportsName + '})')
+        }
       })
       Object.keys(globals).forEach(function (name) {
         identifiers[name].forEach(function (node) {
