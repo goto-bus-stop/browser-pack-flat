@@ -20,8 +20,15 @@ function parseModule (row) {
   var identifiers = {}
 
   var shouldWrap = false
+  var ast
+  var result = falafel(row.source, function (node) {
+    if (node.type === 'Program') ast = node
+    registerScopeBindings(node)
 
-  var ast = falafel(row.source, function (node) {
+    // Bit awkward, falafel traverses children before parents
+    // so we don't have the scope information of parent nodes here just yet.
+    // So we collect everything that we may have to replace, and then filter
+    // it down to only actually-module-global bindings below.
     if (isModuleExports(node)) {
       moduleExportsList.push(node)
     } else if (isExports(node)) {
@@ -40,11 +47,16 @@ function parseModule (row) {
           identifiers[name].push(node)
         }
       }
-      if (isModuleVariable(node)) {
+      if (isTopLevelDefinition(node)) {
         globals[node.name] = true
       }
     }
   })
+
+  // We only care about module-global variables
+  moduleExportsList = moduleExportsList.filter(function (node) { return isModuleGlobal(node.object) })
+  exportsList = exportsList.filter(isModuleGlobal)
+  moduleList = moduleList.filter(isModuleGlobal)
 
   shouldWrap = moduleExportsList.length > 0 && exportsList.length > 0
   if (!shouldWrap) {
@@ -60,7 +72,9 @@ function parseModule (row) {
     })
     Object.keys(globals).forEach(function (name) {
       identifiers[name].forEach(function (node) {
-        node.update('__' + node.name + '_' + row.id)
+        if (isModuleGlobal(node)) {
+          node.update('__' + node.name + '_' + row.id)
+        }
       })
     })
   }
@@ -69,12 +83,57 @@ function parseModule (row) {
   row.source = (
     shouldWrap
       ? 'var ' + moduleExportsName + ' = { exports: {} }; (function(module,exports){' +
-          ast +
+          result +
         '\n})(' + moduleExportsName + ',' + moduleExportsName + '.exports);' + moduleExportsName + ' = ' + moduleExportsName + '.exports;'
-      : 'var ' + moduleExportsName + ' = {};' + ast
+      : 'var ' + moduleExportsName + ' = {};' + result
   )
 
   return row
+
+  // Get the scope that a declaration will be declared in
+  function getScope (node, blockScope) {
+    var parent = node
+    while ((parent = parent.parent)) {
+      if (isFunction(parent)) {
+        return parent
+      }
+      if (blockScope && parent.type === 'BlockStatement') {
+        return parent
+      }
+      if (parent.type === 'Program') {
+        return parent
+      }
+    }
+    return ast
+  }
+  // Get the scope that this identifier has been declared in
+  function getDeclaredScope (id) {
+    var parent = id
+    while ((parent = parent.parent)) {
+      if (parent.bindings && parent.bindings.indexOf(id.name) !== -1) {
+        return parent
+      }
+    }
+    return ast
+  }
+  function isModuleGlobal (id) {
+    return getDeclaredScope(id) === ast
+  }
+  function registerScopeBindings (node) {
+    if (node.type === 'VariableDeclaration') {
+      var scope = getScope(node, node.kind !== 'var')
+      if (!scope.bindings) scope.bindings = []
+      node.declarations.forEach(function (decl) {
+        scope.bindings.push(decl.id.name)
+      })
+    }
+    if (isFunction(node)) {
+      if (!node.bindings) node.bindings = []
+      node.params.forEach(function (param) {
+        node.bindings.push(param.name)
+      })
+    }
+  }
 }
 
 function flatten (rows, opts) {
@@ -161,7 +220,7 @@ function isFreeIdentifier (node) {
     (node.parent.type !== 'MemberExpression' || node.parent.object === node ||
       (node.parent.property === node && node.parent.computed))
 }
-function isInModuleScope (node, lex) {
+function isInTopLevelScope (node, lex) {
   var parent = node.parent
   do {
     if (parent.type === 'FunctionDeclaration' || parent.type === 'FunctionExpression' || parent.type === 'ArrowFunctionExpression') {
@@ -173,13 +232,17 @@ function isInModuleScope (node, lex) {
   } while ((parent = parent.parent))
   return true
 }
-function isModuleVariable (node) {
+function isTopLevelDefinition (node) {
   if (node.type === 'Identifier' && node.parent.type === 'FunctionDeclaration') {
-    return isInModuleScope(node.parent, false)
+    return isInTopLevelScope(node.parent, false)
   }
   if (node.type === 'Identifier' && node.parent.type === 'VariableDeclarator' &&
       node.parent.id === node) {
-    return isInModuleScope(node.parent, node.parent.parent.kind !== 'var')
+    return isInTopLevelScope(node.parent, node.parent.parent.kind !== 'var')
   }
   return false
+}
+
+function isFunction (node) {
+  return node.type === 'FunctionDeclaration' || node.type === 'FunctionExpression' || node.type === 'ArrowFunctionExpression'
 }
