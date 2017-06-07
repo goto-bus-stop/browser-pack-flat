@@ -152,13 +152,16 @@ function flatten (rows, opts) {
 
   for (var i = 0; i < rows.length; i++) {
     if (rows[i].entry && rows[i].hasExports) {
-      modules.push('module.exports = ' + rows[i].exportsName)
+      if (opts.standalone) {
+        modules.push('return ' + rows[i].exportsName)
+      } else {
+        modules.push('module.exports = ' + rows[i].exportsName)
+      }
     }
   }
 
-  var umdOpts = { commonJS: true }
   return opts.standalone
-    ? umd.prelude(opts.standalone, umdOpts) + modules.join('\n') + umd.postlude(opts.standalone, umdOpts)
+    ? umd.prelude(opts.standalone) + modules.join('\n') + umd.postlude(opts.standalone)
     : '(function(){' + modules.join('\n') + '\n}());'
 }
 
