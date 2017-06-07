@@ -33,7 +33,8 @@ function runTest (name) {
   bundle.pipe(concat(function (result) {
     assert.equal(
       result.toString('utf8'),
-      fs.readFileSync(expected, 'utf8')
+      fs.readFileSync(expected, 'utf8'),
+      name
     )
   }))
 }
