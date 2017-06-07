@@ -21,8 +21,9 @@ function runTest (name) {
   var entry = path.join(basedir, 'app.js')
   var expected = path.join(basedir, 'expected.js')
   var actual = path.join(basedir, 'actual.js')
-  var bundle = browserify({ entries: entry })
-    .plugin(pack, options)
+  options.entries = entry
+  var bundle = browserify(options)
+    .plugin(pack)
     .bundle()
     .on('error', assert.fail)
 
