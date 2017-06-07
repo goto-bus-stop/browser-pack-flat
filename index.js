@@ -47,7 +47,7 @@ function isModuleVariable (node) {
 var dedupedRx = /^arguments\[4\]\[(\d+)\]/
 
 function parseModule (row) {
-  var moduleExportsName = '__module_' + row.id
+  var moduleExportsName = row.exportsName = '__module_' + row.id
   var moduleExportsList = []
   var exportsList = []
   var globals = {}
@@ -131,6 +131,12 @@ function flatten (rows) {
   var modules = rows.map(parseModule).map(function (row) {
     return row.source
   })
+
+  for (var i = 0; i < rows.length; i++) {
+    if (rows[i].entry) {
+      modules.push('module.exports = ' + rows[i].exportsName)
+    }
+  }
 
   return '(function(){' + modules.join('\n') + '})();'
 }
