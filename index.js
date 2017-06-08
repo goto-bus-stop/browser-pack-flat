@@ -198,7 +198,10 @@ function sortModules (rows) {
     if (seen[row.id]) return
     seen[row.id] = true
     if (row.deps) {
-      Object.keys(row.deps).map(function (dep) {
+      Object.keys(row.deps).sort(function (a, b) {
+        // ensure the order is consistent
+        return row.deps[a] - row.deps[b]
+      }).map(function (dep) {
         return modules[row.deps[dep]]
       }).forEach(visit)
     }
