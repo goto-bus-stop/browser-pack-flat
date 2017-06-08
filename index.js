@@ -109,6 +109,15 @@ function parseModule (row) {
   // Get the scope that this identifier has been declared in
   function getDeclaredScope (id) {
     var parent = id
+    // Jump over one parent if this is a function's name--the variables
+    // and parameters _inside_ the function are attached to the FunctionDeclaration
+    // so if a variable inside the function has the same name as the function,
+    // they will conflict.
+    // Here we jump out of the FunctionDeclaration so we can start by looking at the
+    // surrounding scope
+    if (isFunction(id.parent) && id.parent.id === id) {
+      parent = id.parent
+    }
     while ((parent = parent.parent)) {
       if (parent.bindings && parent.bindings.indexOf(id.name) !== -1) {
         return parent
@@ -128,6 +137,10 @@ function parseModule (row) {
       })
     }
     if (isFunction(node)) {
+      var scope = getScope(node, false)
+      if (!scope.bindings) scope.bindings = []
+      if (node.id && node.id.type === 'Identifier') scope.bindings.push(node.id.name)
+
       if (!node.bindings) node.bindings = []
       node.params.forEach(function (param) {
         node.bindings.push(param.name)
