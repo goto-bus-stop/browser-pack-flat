@@ -42,18 +42,23 @@ function parseModule (row, index, rows) {
       moduleList.push(node)
     } else {
       if (isFreeIdentifier(node)) {
-        var name = node.name
-        if (!Array.isArray(identifiers[name])) {
-          identifiers[name] = [node]
-        } else {
-          identifiers[name].push(node)
-        }
+        pushIdentifier(node)
+      } else if (isShorthandProperty(node)) {
+        pushIdentifier(node)
       }
       if (isTopLevelDefinition(node)) {
         globals[node.name] = true
       }
     }
   })
+  function pushIdentifier (node) {
+    var name = node.name
+    if (!Array.isArray(identifiers[name])) {
+      identifiers[name] = [node]
+    } else {
+      identifiers[name].push(node)
+    }
+  }
 
   // We only care about module-global variables
   moduleExportsList = moduleExportsList.filter(function (node) { return isModuleGlobal(node.object) })
@@ -75,7 +80,11 @@ function parseModule (row, index, rows) {
     Object.keys(globals).forEach(function (name) {
       identifiers[name].forEach(function (node) {
         if (isModuleGlobal(node)) {
-          node.update('__' + node.name + '_' + row.id)
+          if (isShorthandProperty(node)) {
+            node.update(node.name + ': __' + node.name + '_' + row.id)
+          } else {
+            node.update('__' + node.name + '_' + row.id)
+          }
         }
       })
     })
@@ -231,6 +240,9 @@ function isRequire (node) {
 }
 function isObjectKey (node) {
   return node.parent.type === 'Property' && node.parent.key === node
+}
+function isShorthandProperty (node) {
+  return node.type === 'Identifier' && isObjectKey(node) && node.parent.shorthand
 }
 function isFreeIdentifier (node) {
   return node.type === 'Identifier' &&
