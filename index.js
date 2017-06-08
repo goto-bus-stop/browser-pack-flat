@@ -4,12 +4,14 @@ var umd = require('umd')
 
 var dedupedRx = /^arguments\[4\]\[(\d+)\]/
 
-function parseModule (row) {
+function parseModule (row, index, rows) {
   var moduleExportsName = row.exportsName = '__module_' + row.id
   if (dedupedRx.test(row.source)) {
     var n = row.source.match(dedupedRx)[1]
-    row.source = 'var ' + moduleExportsName + ' = __module_' + n + ';'
-    return row
+    var dedup = rows.filter(function (other) {
+      return String(other.id) === n
+    })[0]
+    row.source = dedup.source
   }
 
   // variable references
@@ -80,7 +82,7 @@ function parseModule (row) {
   }
 
   row.hasExports = (moduleExportsList.length + exportsList.length) > 0
-  row.source = (
+  row.flatSource = (
     shouldWrap
       ? 'var ' + moduleExportsName + ' = { exports: {} }; (function(module,exports){' +
           result +
@@ -153,7 +155,7 @@ function flatten (rows, opts) {
   rows = sortModules(rows)
 
   var modules = rows.map(parseModule).map(function (row) {
-    return row.source
+    return row.flatSource
   })
 
   for (var i = 0; i < rows.length; i++) {
