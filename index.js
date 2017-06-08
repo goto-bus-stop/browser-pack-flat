@@ -67,7 +67,7 @@ function parseModule (row, index, rows) {
     })
     moduleList.forEach(function (node) {
       if (node.parent.type === 'UnaryExpression' && node.parent.operator === 'typeof') {
-        node.update('"object"')
+        node.parent.update('"object"')
       } else {
         node.update('({exports:' + moduleExportsName + '})')
       }
