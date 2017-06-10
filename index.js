@@ -37,7 +37,9 @@ function parseModule (row, index, rows) {
       exportsList.push(node)
     } else if (isRequire(node)) {
       var required = node.arguments[0].value
-      if (row.deps[required]) node.update('__module_' + row.deps[required])
+      if (row.deps[required] && moduleExists(row.deps[required])) {
+        node.update('__module_' + row.deps[required])
+      }
     } else if (isModule(node)) {
       moduleList.push(node)
     } else {
@@ -58,6 +60,11 @@ function parseModule (row, index, rows) {
     } else {
       identifiers[name].push(node)
     }
+  }
+  function moduleExists (id) {
+    return rows.some(function (row) {
+      return String(row.id) === String(id)
+    })
   }
 
   // We only care about module-global variables
@@ -207,7 +214,7 @@ function sortModules (rows) {
 
   var sorted = []
   rows.forEach(function visit (row) {
-    if (seen[row.id]) return
+    if (!row || seen[row.id]) return
     seen[row.id] = true
     if (row.deps) {
       Object.keys(row.deps).sort(function (a, b) {
