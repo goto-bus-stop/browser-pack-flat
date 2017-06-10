@@ -93,10 +93,11 @@ function parseModule (row, index, rows) {
   row.hasExports = (moduleExportsList.length + exportsList.length) > 0
   row.flatSource = (
     shouldWrap
-      ? 'var ' + moduleExportsName + ' = { exports: {} }; (function(module,exports){' +
-          result +
-        '\n})(' + moduleExportsName + ',' + moduleExportsName + '.exports);' + moduleExportsName + ' = ' + moduleExportsName + '.exports;'
-      : 'var ' + moduleExportsName + ' = {};' + result
+      ? 'var ' + moduleExportsName + '_module = { exports: {} }; (function(module,exports){\n' +
+          result + '\n' +
+        '})(' + moduleExportsName + '_module,' + moduleExportsName + '_module.exports);\n' +
+        'var ' + moduleExportsName + ' = ' + moduleExportsName + '_module.exports;'
+      : 'var ' + moduleExportsName + ' = {};\n' + result
   )
 
   return row

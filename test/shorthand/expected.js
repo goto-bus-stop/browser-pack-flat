@@ -1,4 +1,5 @@
-(function(){var __module_1 = {};var __globalVar_1 = 0
+(function(){var __module_1 = {};
+var __globalVar_1 = 0
 
 function __setExports_1 (argument) {
   var localVar = 1
