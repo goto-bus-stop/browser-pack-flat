@@ -1,6 +1,7 @@
 var falafel = require('falafel')
 var through = require('through2')
 var umd = require('umd')
+var json = require('JSONStream')
 
 var dedupedRx = /^arguments\[4\]\[(\d+)\]/
 
@@ -191,18 +192,37 @@ function flatten (rows, opts) {
 }
 
 module.exports = function browserPackFlat(opts) {
+  opts = opts || {}
+
   var rows = []
-  return through.obj(function (row, enc, cb) {
+
+  var packer = through.obj(onwrite, onend)
+  if (!opts.raw) {
+    packer = json.parse([ true ]).pipe(packer)
+  }
+
+  var stream = through.obj(function (chunk, enc, cb) {
+    packer.write(chunk)
+    cb()
+  }, function (cb) {
+    packer.end()
+    cb()
+  })
+
+  return stream
+
+  function onwrite (row, enc, cb) {
     rows.push(row)
     cb(null)
-  }, function (cb) {
+  }
+  function onend (cb) {
     try {
-      this.push(flatten(rows, opts || {}))
+      stream.push(flatten(rows, opts || {}))
       cb(null)
     } catch (err) {
       cb(err)
     }
-  })
+  }
 }
 
 function sortModules (rows) {
