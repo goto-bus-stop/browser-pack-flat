@@ -1,6 +1,6 @@
 # browser-pack-flat
 
-Scope hoisting for browserified bundles.
+Bundle browserify modules into a single scope, a la rollup.
 
 Caveats:
 
