@@ -24,8 +24,8 @@ function parseModule (row, index, rows) {
   var identifiers = {}
 
   var shouldWrap = false
-  var ast
   var source = new MagicString(row.source)
+  var ast
   walk(row.source)(function (node) {
     if (node.type === 'Program') ast = node
     registerScopeBindings(node)
@@ -177,13 +177,16 @@ function parseModule (row, index, rows) {
 function flatten (rows, opts) {
   rows = sortModules(rows)
 
-  var modules = rows.map(parseModule).map(function (row) {
-    return row.flatSource
-  })
-
   var bundle = new MagicString.Bundle()
-  modules.forEach(function (source) {
-    bundle.addSource(source)
+  var includeMap = false
+  rows.map(parseModule).forEach(function (row) {
+    if (row.sourceFile && !row.nomap) {
+      includeMap = true
+    }
+    bundle.addSource({
+      filename: row.sourceFile,
+      content: row.flatSource
+    })
   })
 
   for (var i = 0; i < rows.length; i++) {
@@ -204,7 +207,14 @@ function flatten (rows, opts) {
     bundle.append('}());')
   }
 
-  return bundle.toString()
+  var result = bundle.toString()
+  if (includeMap) {
+    var map = bundle.generateMap({
+      includeContent: true
+    })
+    result += '\n//# sourceMappingURL=' + map.toUrl()
+  }
+  return result
 }
 
 module.exports = function browserPackFlat(opts) {
