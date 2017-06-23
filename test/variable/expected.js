@@ -1,4 +1,5 @@
-(function(){var __module_2 = {};
+(function(){
+var __module_2 = {};
 __module_2 = function (module) {
   return { exports: module }
 }
@@ -10,6 +11,5 @@ __module_1.something = function () {
   exports.something = __module_2
   return exports
 }
-
-module.exports = __module_1
+module.exports = __module_1;
 }());

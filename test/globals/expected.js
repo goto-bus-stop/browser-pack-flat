@@ -1,4 +1,5 @@
-(function(){var __module_2 = {};
+(function(){
+var __module_2 = {};
 function __globalFunction_2 () {
   var globalFunction = null
 }
@@ -14,5 +15,4 @@ __module_3
 console.log(__somevar_1)
 
 __module_2
-
 }());

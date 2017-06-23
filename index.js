@@ -1,4 +1,5 @@
-var falafel = require('falafel')
+var walk = require('astw')
+var MagicString = require('magic-string')
 var through = require('through2')
 var umd = require('umd')
 var json = require('JSONStream')
@@ -24,11 +25,12 @@ function parseModule (row, index, rows) {
 
   var shouldWrap = false
   var ast
-  var result = falafel(row.source, function (node) {
+  var source = new MagicString(row.source)
+  walk(row.source)(function (node) {
     if (node.type === 'Program') ast = node
     registerScopeBindings(node)
 
-    // Bit awkward, falafel traverses children before parents
+    // Bit awkward, `astw` traverses children before parents
     // so we don't have the scope information of parent nodes here just yet.
     // So we collect everything that we may have to replace, and then filter
     // it down to only actually-module-global bindings below.
@@ -39,7 +41,7 @@ function parseModule (row, index, rows) {
     } else if (isRequire(node)) {
       var required = node.arguments[0].value
       if (row.deps[required] && moduleExists(row.deps[required])) {
-        node.update('__module_' + row.deps[required])
+        source.overwrite(node.start, node.end, '__module_' + row.deps[required])
       }
     } else if (isModule(node)) {
       moduleList.push(node)
@@ -76,22 +78,22 @@ function parseModule (row, index, rows) {
   shouldWrap = moduleExportsList.length > 0 && exportsList.length > 0
   if (!shouldWrap) {
     moduleExportsList.concat(exportsList).forEach(function (node) {
-      node.update(moduleExportsName)
+      source.overwrite(node.start, node.end, moduleExportsName)
     })
     moduleList.forEach(function (node) {
       if (node.parent.type === 'UnaryExpression' && node.parent.operator === 'typeof') {
-        node.parent.update('"object"')
+        source.overwrite(node.parent.start, node.parent.end, '"object"')
       } else {
-        node.update('({exports:' + moduleExportsName + '})')
+        source.overwrite(node.start, node.end, '({exports:' + moduleExportsName + '})')
       }
     })
     Object.keys(globals).forEach(function (name) {
       identifiers[name].forEach(function (node) {
         if (isModuleGlobal(node)) {
           if (isShorthandProperty(node)) {
-            node.update(node.name + ': __' + node.name + '_' + row.id)
+            source.overwrite(node.start, node.end, node.name + ': __' + node.name + '_' + row.id)
           } else {
-            node.update('__' + node.name + '_' + row.id)
+            source.overwrite(node.start, node.end, '__' + node.name + '_' + row.id)
           }
         }
       })
@@ -99,14 +101,17 @@ function parseModule (row, index, rows) {
   }
 
   row.hasExports = (moduleExportsList.length + exportsList.length) > 0
-  row.flatSource = (
-    shouldWrap
-      ? 'var ' + moduleExportsName + '_module = { exports: {} }; (function(module,exports){\n' +
-          result + '\n' +
-        '})(' + moduleExportsName + '_module,' + moduleExportsName + '_module.exports);\n' +
-        'var ' + moduleExportsName + ' = ' + moduleExportsName + '_module.exports;'
-      : 'var ' + moduleExportsName + ' = {};\n' + result
-  )
+
+  if (shouldWrap) {
+    source
+      .prepend('var ' + moduleExportsName + '_module = { exports: {} }; (function(module,exports){\n')
+      .append('})(' + moduleExportsName + '_module,' + moduleExportsName + '_module.exports);\n' +
+              'var ' + moduleExportsName + ' = ' + moduleExportsName + '_module.exports;')
+  } else {
+    source.prepend('var ' + moduleExportsName + ' = {};\n')
+  }
+
+  row.flatSource = source
 
   return row
 
@@ -176,19 +181,30 @@ function flatten (rows, opts) {
     return row.flatSource
   })
 
+  var bundle = new MagicString.Bundle()
+  modules.forEach(function (source) {
+    bundle.addSource(source)
+  })
+
   for (var i = 0; i < rows.length; i++) {
     if (rows[i].entry && rows[i].hasExports) {
       if (opts.standalone) {
-        modules.push('return ' + rows[i].exportsName)
+        bundle.append('return ' + rows[i].exportsName + ';\n')
       } else {
-        modules.push('module.exports = ' + rows[i].exportsName)
+        bundle.append('module.exports = ' + rows[i].exportsName + ';\n')
       }
     }
   }
 
-  return opts.standalone
-    ? umd.prelude(opts.standalone) + modules.join('\n') + umd.postlude(opts.standalone)
-    : '(function(){' + modules.join('\n') + '\n}());'
+  if (opts.standalone) {
+    bundle.prepend(umd.prelude(opts.standalone))
+    bundle.append(umd.postlude(opts.standalone))
+  } else {
+    bundle.prepend('(function(){\n')
+    bundle.append('}());')
+  }
+
+  return bundle.toString()
 }
 
 module.exports = function browserPackFlat(opts) {

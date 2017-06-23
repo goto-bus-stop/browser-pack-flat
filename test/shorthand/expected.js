@@ -1,4 +1,5 @@
-(function(){var __module_1 = {};
+(function(){
+var __module_1 = {};
 var __globalVar_1 = 0
 
 function __setExports_1 (argument) {
@@ -11,6 +12,5 @@ function __setExports_1 (argument) {
 }
 
 __setExports_1(10)
-
-module.exports = __module_1
+module.exports = __module_1;
 }());
