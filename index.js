@@ -1,5 +1,5 @@
-var walk = require('astw')
-var MagicString = require('magic-string')
+var Bundle = require('magic-string').Bundle
+var transformAst = require('transform-ast')
 var through = require('through2')
 var umd = require('umd')
 var json = require('JSONStream')
@@ -24,9 +24,8 @@ function parseModule (row, index, rows) {
   var identifiers = {}
 
   var shouldWrap = false
-  var source = new MagicString(row.source)
   var ast
-  walk(row.source)(function (node) {
+  var source = transformAst(row.source, function (node) {
     if (node.type === 'Program') ast = node
     registerScopeBindings(node)
 
@@ -41,7 +40,7 @@ function parseModule (row, index, rows) {
     } else if (isRequire(node)) {
       var required = node.arguments[0].value
       if (row.deps[required] && moduleExists(row.deps[required])) {
-        source.overwrite(node.start, node.end, '__module_' + row.deps[required])
+        node.update('__module_' + row.deps[required])
       }
     } else if (isModule(node)) {
       moduleList.push(node)
@@ -78,22 +77,22 @@ function parseModule (row, index, rows) {
   shouldWrap = moduleExportsList.length > 0 && exportsList.length > 0
   if (!shouldWrap) {
     moduleExportsList.concat(exportsList).forEach(function (node) {
-      source.overwrite(node.start, node.end, moduleExportsName)
+      node.update(moduleExportsName)
     })
     moduleList.forEach(function (node) {
       if (node.parent.type === 'UnaryExpression' && node.parent.operator === 'typeof') {
-        source.overwrite(node.parent.start, node.parent.end, '"object"')
+        node.parent.update('"object"')
       } else {
-        source.overwrite(node.start, node.end, '({exports:' + moduleExportsName + '})')
+        node.update('({exports:' + moduleExportsName + '})')
       }
     })
     Object.keys(globals).forEach(function (name) {
       identifiers[name].forEach(function (node) {
         if (isModuleGlobal(node)) {
           if (isShorthandProperty(node)) {
-            source.overwrite(node.start, node.end, node.name + ': __' + node.name + '_' + row.id)
+            node.update(node.name + ': __' + node.name + '_' + row.id)
           } else {
-            source.overwrite(node.start, node.end, '__' + node.name + '_' + row.id)
+            node.update('__' + node.name + '_' + row.id)
           }
         }
       })
@@ -177,7 +176,7 @@ function parseModule (row, index, rows) {
 function flatten (rows, opts) {
   rows = sortModules(rows)
 
-  var bundle = new MagicString.Bundle()
+  var bundle = new Bundle()
   var includeMap = false
   rows.map(parseModule).forEach(function (row) {
     if (row.sourceFile && !row.nomap) {
