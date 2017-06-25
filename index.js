@@ -324,8 +324,9 @@ function detectCycles (rows) {
     check(module, [])
 
     function check (row, visited) {
-      if (visited.includes(row)) {
-        for (var i = visited.indexOf(row); i < visited.length; i++) {
+      var i = visited.indexOf(row)
+      if (i !== -1) {
+        for (; i < visited.length; i++) {
           cyclicalModules.add(visited[i])
         }
         return
