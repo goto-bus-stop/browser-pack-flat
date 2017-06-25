@@ -321,9 +321,11 @@ function detectCycles (rows) {
 
   var cyclicalModules = new Set
   rows.forEach(function (module) {
-    check(module, [])
+    var visited = []
 
-    function check (row, visited) {
+    check(module)
+
+    function check (row) {
       var i = visited.indexOf(row)
       if (i !== -1) {
         for (; i < visited.length; i++) {
@@ -331,12 +333,13 @@ function detectCycles (rows) {
         }
         return
       }
-      visited = visited.concat([row])
+      visited.push(row)
       Object.keys(row.deps).forEach(function (k) {
         var dep = row.deps[k]
         var other = rowsById[dep]
         if (other) check(other, visited)
       })
+      visited.pop()
     }
   })
 
