@@ -27,7 +27,6 @@ function parseModule (row, index, rows) {
   var globals = {}
   var identifiers = {}
 
-  var shouldWrap = false
   var ast
   var source = transformAst(row.source, function (node) {
     if (node.type === 'Program') ast = node
@@ -85,8 +84,6 @@ function parseModule (row, index, rows) {
   exportsList = exportsList.filter(isModuleGlobal)
   moduleList = moduleList.filter(isModuleGlobal)
 
-  shouldWrap = moduleExportsList.length > 0 && exportsList.length > 0
-
   // If `module` is used as a free variable we need to turn it into an object with an `.exports`
   // property, to deal with situations like:
   //
@@ -99,7 +96,7 @@ function parseModule (row, index, rows) {
     moduleExportsName += '.exports'
   }
 
-  if (!shouldWrap && !row.isCycle) { // cycles are always wrapped
+  if (!row.isCycle) { // cycles have a function wrapper and don't need to be rewritten
     moduleExportsList.concat(exportsList).forEach(function (node) {
       node.update(moduleExportsName)
     })
@@ -128,11 +125,6 @@ function parseModule (row, index, rows) {
   if (row.isCycle) {
     source.prepend('__cycle[' + JSON.stringify(row.id) + '] = (function (module, exports) {\n')
     source.append('});')
-  } else if (shouldWrap) {
-    source
-      .prepend('var ' + moduleExportsName + '_module = { exports: {} }; (function(module,exports){\n')
-      .append('})(' + moduleExportsName + '_module,' + moduleExportsName + '_module.exports);\n' +
-              'var ' + moduleExportsName + ' = ' + moduleExportsName + '_module.exports;')
   } else if (moduleBaseName) {
     source
       .prepend('var ' + moduleBaseName + ' = { exports: {} };\n')
