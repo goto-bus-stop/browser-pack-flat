@@ -12,6 +12,7 @@ __module_3 = function b() {
 var __module_2 = {};
 __module_2.a = __module_1
 __module_2.b = __module_3
+
 return __module_2;
 
 });

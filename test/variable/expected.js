@@ -11,5 +11,6 @@ __module_1.something = function () {
   exports.something = __module_2
   return exports
 }
+
 module.exports = __module_1;
 }());

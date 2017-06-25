@@ -225,9 +225,9 @@ function flatten (rows, opts) {
   for (var i = 0; i < rows.length; i++) {
     if (rows[i].entry && rows[i].hasExports) {
       if (opts.standalone) {
-        bundle.append('return ' + rows[i].exportsName + ';\n')
+        bundle.append('\nreturn ' + rows[i].exportsName + ';\n')
       } else {
-        bundle.append('module.exports = ' + rows[i].exportsName + ';\n')
+        bundle.append('\nmodule.exports = ' + rows[i].exportsName + ';\n')
       }
     }
   }
