@@ -1,14 +1,5 @@
 (function(){
-var __cycle = function factories(id) {
-  var resolved = factories.r
-  if (resolved[id]) return resolved[id].exports
-  if (factories.hasOwnProperty(id)) {
-    resolved[id] = { exports: {} }
-    factories[id](resolved[id], resolved[id].exports)
-    return resolved[id].exports
-  }
-  throw new Error('Cannot find module #' + id)
-}; __cycle.r = {};
+var __cycle = function r(o){var t=r.r;if(t[o])return t[o].exports;if(r.hasOwnProperty(o))return t[o]={exports:{}},r[o](t[o],t[o].exports),t[o].exports;throw new Error("Cannot find module #"+o)}; __cycle.r = {};
 __cycle[1] = (function (module, exports) {
 exports.b = __module_3
 exports.c = __cycle(4)

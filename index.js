@@ -5,6 +5,7 @@ var umd = require('umd')
 var json = require('JSONStream')
 
 var dedupedRx = /^arguments\[4\]\[(\d+)\]/
+var CYCLE_HELPER = 'function r(o){var t=r.r;if(t[o])return t[o].exports;if(r.hasOwnProperty(o))return t[o]={exports:{}},r[o](t[o],t[o].exports),t[o].exports;throw new Error("Cannot find module #"+o)}'
 
 function parseModule (row, index, rows) {
   var moduleExportsName = row.exportsName = '__module_' + row.id
@@ -183,23 +184,6 @@ function parseModule (row, index, rows) {
   }
 }
 
-/**
- * Helper used in the output bundle in case of dependency cycles.
- * Properties defined on the `factories` function are module factories, taking a
- * `module` and an `exports` argument.
- * The `.r` property of this function will contain the module cache.
- */
-var resolveCycleRuntime = function factories (id) {
-  var resolved = factories.r
-  if (resolved[id]) return resolved[id].exports
-  if (factories.hasOwnProperty(id)) {
-    resolved[id] = { exports: {} }
-    factories[id](resolved[id], resolved[id].exports)
-    return resolved[id].exports
-  }
-  throw new Error('Cannot find module #' + id)
-}
-
 function flatten (rows, opts) {
   rows = sortModules(rows)
   var containsCycles = detectCycles(rows)
@@ -209,7 +193,7 @@ function flatten (rows, opts) {
 
   // Add the circular dependency runtime if necessary.
   if (containsCycles) {
-    bundle.prepend('var __cycle = ' + resolveCycleRuntime + '; __cycle.r = {};\n')
+    bundle.prepend('var __cycle = ' + CYCLE_HELPER + '; __cycle.r = {};\n')
   }
 
   rows.map(parseModule).forEach(function (row) {
