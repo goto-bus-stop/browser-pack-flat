@@ -8,6 +8,9 @@ var dedupedRx = /^arguments\[4\]\[(\d+)\]/
 var CYCLE_HELPER = 'function r(o){var t=r.r;if(t[o])return t[o].exports;if(r.hasOwnProperty(o))return t[o]={exports:{}},r[o](t[o],t[o].exports),t[o].exports;throw new Error("Cannot find module #"+o)}'
 
 function parseModule (row, index, rows) {
+  // Will hold the `module` variable name if necessary.
+  var moduleBaseName = null
+  // Holds the `module.exports` variable name.
   var moduleExportsName = row.exportsName = '__module_' + row.id
   if (dedupedRx.test(row.source)) {
     var n = row.source.match(dedupedRx)[1]
@@ -83,6 +86,19 @@ function parseModule (row, index, rows) {
   moduleList = moduleList.filter(isModuleGlobal)
 
   shouldWrap = moduleExportsList.length > 0 && exportsList.length > 0
+
+  // If `module` is used as a free variable we need to turn it into an object with an `.exports`
+  // property, to deal with situations like:
+  //
+  //     var a = module;
+  //     a.exports = 'hello'
+  //
+  // Not too common, but it happens…
+  if (moduleList.length > 0) {
+    moduleBaseName = moduleExportsName
+    moduleExportsName += '.exports'
+  }
+
   if (!shouldWrap && !row.isCycle) { // cycles are always wrapped
     moduleExportsList.concat(exportsList).forEach(function (node) {
       node.update(moduleExportsName)
@@ -91,7 +107,7 @@ function parseModule (row, index, rows) {
       if (node.parent.type === 'UnaryExpression' && node.parent.operator === 'typeof') {
         node.parent.update('"object"')
       } else {
-        node.update('({exports:' + moduleExportsName + '})')
+        node.update(moduleBaseName)
       }
     })
     Object.keys(globals).forEach(function (name) {
@@ -117,6 +133,11 @@ function parseModule (row, index, rows) {
       .prepend('var ' + moduleExportsName + '_module = { exports: {} }; (function(module,exports){\n')
       .append('})(' + moduleExportsName + '_module,' + moduleExportsName + '_module.exports);\n' +
               'var ' + moduleExportsName + ' = ' + moduleExportsName + '_module.exports;')
+  } else if (moduleBaseName) {
+    source
+      .prepend('var ' + moduleBaseName + ' = { exports: {} };\n')
+      .append('\n' + moduleBaseName + ' = ' + moduleExportsName)
+    moduleExportsName = moduleBaseName
   } else {
     source.prepend('var ' + moduleExportsName + ' = {};\n')
   }
