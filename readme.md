@@ -8,7 +8,6 @@ Caveats:
    If a module wraps `require()` somehow it probably will not work.
    In practice this is quite rare.
  - Using `factor-bundle` to split output code into separate files will not work with this plugin.
- - Dependency cycles don't work with this plugin. ([#4](https://github.com/goto-bus-stop/browser-pack-flat/issues/4))
 
 ## Install
 
