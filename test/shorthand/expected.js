@@ -12,5 +12,6 @@ function __setExports_1 (argument) {
 }
 
 __setExports_1(10)
+
 module.exports = __module_1;
 }());

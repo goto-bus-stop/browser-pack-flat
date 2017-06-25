@@ -5,6 +5,7 @@ var umd = require('umd')
 var json = require('JSONStream')
 
 var dedupedRx = /^arguments\[4\]\[(\d+)\]/
+var CYCLE_HELPER = 'function r(o){var t=r.r;if(t[o])return t[o].exports;if(r.hasOwnProperty(o))return t[o]={exports:{}},r[o](t[o],t[o].exports),t[o].exports;throw new Error("Cannot find module #"+o)}'
 
 function parseModule (row, index, rows) {
   var moduleExportsName = row.exportsName = '__module_' + row.id
@@ -29,7 +30,7 @@ function parseModule (row, index, rows) {
     if (node.type === 'Program') ast = node
     registerScopeBindings(node)
 
-    // Bit awkward, `astw` traverses children before parents
+    // Bit awkward, `transform-ast` traverses children before parents
     // so we don't have the scope information of parent nodes here just yet.
     // So we collect everything that we may have to replace, and then filter
     // it down to only actually-module-global bindings below.
@@ -40,7 +41,14 @@ function parseModule (row, index, rows) {
     } else if (isRequire(node)) {
       var required = node.arguments[0].value
       if (row.deps[required] && moduleExists(row.deps[required])) {
-        node.update('__module_' + row.deps[required])
+        var other = rows.find(function (other) { return other.id === row.deps[required] })
+        if (other && other.isCycle) {
+          node.update('__cycle(' + row.deps[required] + ')')
+        } else if (other && other.exportsName) {
+          node.update(other.exportsName)
+        } else {
+          node.update('__module_' + row.deps[required])
+        }
       }
     } else if (isModule(node)) {
       moduleList.push(node)
@@ -75,7 +83,7 @@ function parseModule (row, index, rows) {
   moduleList = moduleList.filter(isModuleGlobal)
 
   shouldWrap = moduleExportsList.length > 0 && exportsList.length > 0
-  if (!shouldWrap) {
+  if (!shouldWrap && !row.isCycle) { // cycles are always wrapped
     moduleExportsList.concat(exportsList).forEach(function (node) {
       node.update(moduleExportsName)
     })
@@ -101,7 +109,10 @@ function parseModule (row, index, rows) {
 
   row.hasExports = (moduleExportsList.length + exportsList.length) > 0
 
-  if (shouldWrap) {
+  if (row.isCycle) {
+    source.prepend('__cycle[' + JSON.stringify(row.id) + '] = (function (module, exports) {\n')
+    source.append('});')
+  } else if (shouldWrap) {
     source
       .prepend('var ' + moduleExportsName + '_module = { exports: {} }; (function(module,exports){\n')
       .append('})(' + moduleExportsName + '_module,' + moduleExportsName + '_module.exports);\n' +
@@ -175,9 +186,16 @@ function parseModule (row, index, rows) {
 
 function flatten (rows, opts) {
   rows = sortModules(rows)
+  var containsCycles = detectCycles(rows)
 
   var bundle = new Bundle()
   var includeMap = false
+
+  // Add the circular dependency runtime if necessary.
+  if (containsCycles) {
+    bundle.prepend('var __cycle = ' + CYCLE_HELPER + '; __cycle.r = {};\n')
+  }
+
   rows.map(parseModule).forEach(function (row) {
     if (row.sourceFile && !row.nomap) {
       includeMap = true
@@ -191,9 +209,9 @@ function flatten (rows, opts) {
   for (var i = 0; i < rows.length; i++) {
     if (rows[i].entry && rows[i].hasExports) {
       if (opts.standalone) {
-        bundle.append('return ' + rows[i].exportsName + ';\n')
+        bundle.append('\nreturn ' + rows[i].exportsName + ';\n')
       } else {
-        bundle.append('module.exports = ' + rows[i].exportsName + ';\n')
+        bundle.append('\nmodule.exports = ' + rows[i].exportsName + ';\n')
       }
     }
   }
@@ -272,6 +290,52 @@ function sortModules (rows) {
     sorted.push(row)
   })
   return sorted
+}
+
+/**
+ * Detect cyclical dependencies in the bundle. All modules in a dependency cycle
+ * are moved to the top of the bundle and wrapped in functions so they're not
+ * evaluated immediately. When other modules need a module that's in a dependency
+ * cycle, instead of using the module's exportName, it'll call the `__cycle` runtime
+ * function, which will execute the requested module and return its exports.
+ */
+function detectCycles (rows) {
+  var rowsById = {}
+  rows.forEach(function (row) { rowsById[row.id] = row })
+
+  var cyclicalModules = new Set
+  rows.forEach(function (module) {
+    var visited = []
+
+    check(module)
+
+    function check (row) {
+      var i = visited.indexOf(row)
+      if (i !== -1) {
+        for (; i < visited.length; i++) {
+          cyclicalModules.add(visited[i])
+        }
+        return
+      }
+      visited.push(row)
+      Object.keys(row.deps).forEach(function (k) {
+        var dep = row.deps[k]
+        var other = rowsById[dep]
+        if (other) check(other, visited)
+      })
+      visited.pop()
+    }
+  })
+
+  // move modules in a dependency cycle to the top of the bundle and mark them as being cyclical.
+  for (var i = 0; i < rows.length; i++) {
+    if (cyclicalModules.has(rows[i])) {
+      var row = rows.splice(i, 1)
+      rows.unshift(row[0])
+      row[0].isCycle = true
+    }
+  }
+  return cyclicalModules.size > 0
 }
 
 function isModuleExports (node) {

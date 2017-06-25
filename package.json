@@ -7,7 +7,8 @@
   "scripts": {
     "test:self": "node test/self.js",
     "test:test": "node test/test.js",
-    "test": "npm run test:test && npm run test:self"
+    "test": "npm run test:test && npm run test:self",
+    "helper": "uglifyjs cycleHelper.js -cm toplevel=true"
   },
   "keywords": [],
   "author": "",
@@ -22,6 +23,7 @@
   "devDependencies": {
     "browser-unpack": "^1.2.0",
     "browserify": "^14.4.0",
-    "concat-stream": "^1.6.0"
+    "concat-stream": "^1.6.0",
+    "uglify-js": "^3.0.20"
   }
 }
