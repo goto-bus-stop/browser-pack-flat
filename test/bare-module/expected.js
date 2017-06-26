@@ -14,4 +14,5 @@ if ("object" === 'object' && __module_1.exports) {
 
 __module_1 = __module_1.exports
 module.exports = __module_1;
+
 }());

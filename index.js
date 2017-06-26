@@ -139,7 +139,7 @@ function parseModule (row, index, rows) {
 
   if (row.isCycle) {
     source.prepend('__cycle[' + JSON.stringify(row.id) + '] = (function (module, exports) {\n')
-    source.append('});')
+    source.append('\n});')
   } else if (moduleBaseName) {
     source
       .prepend('var ' + moduleBaseName + ' = { exports: {} };\n')
@@ -249,7 +249,7 @@ function flatten (rows, opts) {
     bundle.append(umd.postlude(opts.standalone))
   } else {
     bundle.prepend('(function(){\n')
-    bundle.append('}());')
+    bundle.append('\n}());')
   }
 
   var result = bundle.toString()

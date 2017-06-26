@@ -5,14 +5,17 @@ var b = __cycle(3)
 module.exports = function () {
   return b()
 }
+
 });
 __cycle[3] = (function (module, exports) {
 module.exports = function () {
   return __cycle(1).toString()
 }
+
 });
 var __module_2 = {};
 console.log(
   __cycle(1)()
 )
+
 }());

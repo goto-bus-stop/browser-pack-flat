@@ -6,4 +6,5 @@ var __world_3 = __module_3 = 'world'
 
 var __module_1 = {};
 console.log(__module_2, __module_3)
+
 }());

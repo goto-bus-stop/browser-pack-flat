@@ -12,4 +12,5 @@ __module_1.something = function () {
 }
 
 module.exports = __module_1;
+
 }());
