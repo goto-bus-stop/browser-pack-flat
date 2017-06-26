@@ -1,3 +1,4 @@
+var test = require('tape')
 var assert = require('assert')
 var fs = require('fs')
 var path = require('path')
@@ -10,10 +11,13 @@ var tests = fs.readdirSync(__dirname).filter(function (name) {
 })
 
 tests.forEach(function (name) {
-  runTest(name)
+  test(name, function (t) {
+    runTest(t, name)
+  })
 })
 
-function runTest (name) {
+function runTest (t, name) {
+  t.plan(1)
   var basedir = path.join(__dirname, name)
   var optionsPath = path.join(basedir, 'options.json')
   var options = {}
@@ -25,16 +29,17 @@ function runTest (name) {
   var bundle = browserify(options)
     .plugin(pack)
     .bundle()
-    .on('error', assert.fail)
+    .on('error', t.fail)
 
   // Write actual output to a file for easier inspection
   bundle.pipe(fs.createWriteStream(actual))
 
   bundle.pipe(concat(function (result) {
-    assert.equal(
+    t.is(
       result.toString('utf8'),
       fs.readFileSync(expected, 'utf8'),
       name
     )
+    t.end()
   }))
 }
