@@ -1,6 +1,5 @@
 (function(){
-var __module_2 = {};
-__module_2 = function (module) {
+var __module_2 = function (module) {
   return { exports: module }
 }
 

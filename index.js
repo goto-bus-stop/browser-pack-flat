@@ -96,9 +96,24 @@ function parseModule (row, index, rows) {
     moduleExportsName += '.exports'
   }
 
+  // Detect simple exports that are just `module.exports = `, we can compile them to a single
+  // variable assignment.
+  var isSimpleExport = false
+  if (moduleExportsList.length === 1 && exportsList.length === 0 && moduleList.length === 0) {
+    var node = moduleExportsList[0]
+    if (node.parent.type === 'AssignmentExpression' && node.parent.left === node &&
+        node.parent.parent.type === 'ExpressionStatement') {
+      isSimpleExport = getScope(node.object, false) === ast
+    }
+  }
+
   if (!row.isCycle) { // cycles have a function wrapper and don't need to be rewritten
     moduleExportsList.concat(exportsList).forEach(function (node) {
-      node.update(moduleExportsName)
+      if (isSimpleExport) {
+        node.update('var ' + moduleExportsName)
+      } else {
+        node.update(moduleExportsName)
+      }
     })
     moduleList.forEach(function (node) {
       if (node.parent.type === 'UnaryExpression' && node.parent.operator === 'typeof') {
@@ -130,7 +145,7 @@ function parseModule (row, index, rows) {
       .prepend('var ' + moduleBaseName + ' = { exports: {} };\n')
       .append('\n' + moduleBaseName + ' = ' + moduleExportsName)
     moduleExportsName = moduleBaseName
-  } else {
+  } else if (!isSimpleExport) {
     source.prepend('var ' + moduleExportsName + ' = {};\n')
   }
 

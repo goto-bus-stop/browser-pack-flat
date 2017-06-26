@@ -7,14 +7,11 @@ exports.c = __cycle(4)
 __cycle[4] = (function (module, exports) {
 module.exports = 10 + __cycle(1).b
 });
-var __module_3 = {};
-__module_3 = 10
+var __module_3 = 10
 
-var __module_5 = {};
-__module_5 = 'hello'
+var __module_5 = 'hello'
 
-var __module_6 = {};
-__module_6 = 'world'
+var __module_6 = 'world'
 
 var __module_2 = {};
 console.log({

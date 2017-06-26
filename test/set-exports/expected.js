@@ -12,11 +12,9 @@ var __something_4 = function () {
 __something_4().exports = 5
 
 __module_4 = __module_4.exports
-var __module_5 = {};
-__module_5 = 1
+var __module_5 = 1
 
-var __module_6 = {};
-__module_6 = 4
+var __module_6 = 4
 
 var __module_1 = {};
 __module_1.moduleExports = __module_5
