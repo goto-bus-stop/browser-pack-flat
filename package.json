@@ -1,9 +1,11 @@
 {
   "name": "browser-pack-flat",
   "version": "2.2.0",
-  "description": "",
+  "description": "bundle browserify modules into a single scope, a la rollup",
   "main": "index.js",
-  "bin": "cli.js",
+  "bin": {
+    "browser-pack-flat": "cli.js"
+  },
   "scripts": {
     "test:self": "node test/self.js",
     "test:test": "node test/test.js",
@@ -11,8 +13,8 @@
     "helper": "uglifyjs cycleHelper.js -cm toplevel=true"
   },
   "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "author": "Renée Kooi <renee@kooi.me>",
+  "license": "MIT",
   "dependencies": {
     "JSONStream": "^1.3.1",
     "magic-string": "^0.21.3",
@@ -25,5 +27,16 @@
     "browserify": "^14.4.0",
     "concat-stream": "^1.6.0",
     "uglify-js": "^3.0.20"
-  }
+  },
+  "directories": {
+    "test": "test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/goto-bus-stop/browser-pack-flat.git"
+  },
+  "bugs": {
+    "url": "https://github.com/goto-bus-stop/browser-pack-flat/issues"
+  },
+  "homepage": "https://github.com/goto-bus-stop/browser-pack-flat#readme"
 }
