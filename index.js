@@ -24,6 +24,7 @@ function parseModule (row, index, rows) {
   var moduleList = []
   var moduleExportsList = []
   var exportsList = []
+  var requireCalls = []
   var globals = {}
   var identifiers = {}
 
@@ -44,13 +45,11 @@ function parseModule (row, index, rows) {
       var required = node.arguments[0].value
       if (row.deps[required] && moduleExists(row.deps[required])) {
         var other = rows.find(function (other) { return other.id === row.deps[required] })
-        if (other && other.isCycle) {
-          node.edit.update('__cycle(' + row.deps[required] + ')')
-        } else if (other && other.exportsName) {
-          node.edit.update(other.exportsName)
-        } else {
-          node.edit.update('__module_' + row.deps[required])
-        }
+        requireCalls.push({
+          id: row.deps[required],
+          node: node,
+          requiredModule: other
+        })
       }
     } else if (isModule(node)) {
       moduleList.push(node)
@@ -105,11 +104,9 @@ function parseModule (row, index, rows) {
         node.parent.parent.type === 'ExpressionStatement') {
       isSimpleExport = getScope(node.object, false) === ast
 
-      var value = node.parent.right
-      if (value.type === 'FunctionExpression') value = value.id
-      else if (value.type === 'ClassExpression') value = value.id
-      if (value && value.type === 'Identifier') {
-        moduleExportsName = '__' + value.name + '_' + row.id
+      var name = getNodeName(node.parent.right)
+      if (name) {
+        moduleExportsName = '__' + name + '_' + row.id
       }
     }
   }
@@ -141,6 +138,18 @@ function parseModule (row, index, rows) {
       })
     })
   }
+
+  requireCalls.forEach(function (req) {
+    var node = req.node
+    var other = req.requiredModule
+    if (other && other.isCycle) {
+      node.edit.update('__cycle(' + req.id + ')')
+    } else if (other && other.exportsName) {
+      node.edit.update(other.exportsName)
+    } else {
+      node.edit.update('__module_' + req.id)
+    }
+  })
 
   row.hasExports = (moduleExportsList.length + exportsList.length) > 0
 
@@ -378,6 +387,14 @@ function moveCircularDependenciesToStart (rows) {
       var row = rows.splice(i, 1)[0]
       rows.unshift(row)
     }
+  }
+}
+
+function getNodeName (node) {
+  if (node.type === 'FunctionExpression') node = node.id
+  else if (node.type === 'ClassExpression') node = node.id
+  if (node && node.type === 'Identifier') {
+    return node.name
   }
 }
 
