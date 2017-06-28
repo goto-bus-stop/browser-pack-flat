@@ -45,11 +45,11 @@ function parseModule (row, index, rows) {
       if (row.deps[required] && moduleExists(row.deps[required])) {
         var other = rows.find(function (other) { return other.id === row.deps[required] })
         if (other && other.isCycle) {
-          node.update('__cycle(' + row.deps[required] + ')')
+          node.edit.update('__cycle(' + row.deps[required] + ')')
         } else if (other && other.exportsName) {
-          node.update(other.exportsName)
+          node.edit.update(other.exportsName)
         } else {
-          node.update('__module_' + row.deps[required])
+          node.edit.update('__module_' + row.deps[required])
         }
       }
     } else if (isModule(node)) {
@@ -117,25 +117,25 @@ function parseModule (row, index, rows) {
   if (!row.isCycle) { // cycles have a function wrapper and don't need to be rewritten
     moduleExportsList.concat(exportsList).forEach(function (node) {
       if (isSimpleExport) {
-        node.update('var ' + moduleExportsName)
+        node.edit.update('var ' + moduleExportsName)
       } else {
-        node.update(moduleExportsName)
+        node.edit.update(moduleExportsName)
       }
     })
     moduleList.forEach(function (node) {
       if (node.parent.type === 'UnaryExpression' && node.parent.operator === 'typeof') {
-        node.parent.update('"object"')
+        node.parent.edit.update('"object"')
       } else {
-        node.update(moduleBaseName)
+        node.edit.update(moduleBaseName)
       }
     })
     Object.keys(globals).forEach(function (name) {
       identifiers[name].forEach(function (node) {
         if (isModuleGlobal(node)) {
           if (isShorthandProperty(node)) {
-            node.update(node.name + ': __' + node.name + '_' + row.id)
+            node.edit.update(node.name + ': __' + node.name + '_' + row.id)
           } else {
-            node.update('__' + node.name + '_' + row.id)
+            node.edit.update('__' + node.name + '_' + row.id)
           }
         }
       })
