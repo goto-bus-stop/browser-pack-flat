@@ -225,7 +225,9 @@ function flatten (rows, opts) {
     bundle.prepend('var __cycle = ' + CYCLE_HELPER + '; __cycle.r = {};\n')
   }
 
-  rows.map(parseModule).forEach(function (row) {
+  rows = rows.map(parseModule)
+  moveCircularDependenciesToStart(rows)
+  rows.forEach(function (row) {
     if (row.sourceFile && !row.nomap) {
       includeMap = true
     }
@@ -356,15 +358,20 @@ function detectCycles (rows) {
     }
   })
 
-  // move modules in a dependency cycle to the top of the bundle and mark them as being cyclical.
+  // mark cyclical dependencies
   for (var i = 0; i < rows.length; i++) {
-    if (cyclicalModules.has(rows[i])) {
-      var row = rows.splice(i, 1)
-      rows.unshift(row[0])
-      row[0].isCycle = true
-    }
+    rows[i].isCycle = cyclicalModules.has(rows[i])
   }
   return cyclicalModules.size > 0
+}
+
+function moveCircularDependenciesToStart (rows) {
+  for (var i = 0; i < rows.length; i++) {
+    if (rows[i].isCycle) {
+      var row = rows.splice(i, 1)[0]
+      rows.unshift(row)
+    }
+  }
 }
 
 function isModuleExports (node) {
