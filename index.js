@@ -150,13 +150,27 @@ function rewriteModule (row, i, rows) {
   row.imports.forEach(function (req) {
     var node = req.node
     var other = req.requiredModule
+    var name = other && other.exportsName
+      ? other.exportsName
+      : '__module_' + req.id
+
     if (other && other.isCycle) {
       node.edit.update('_$cycle(' + req.id + ')')
-    } else if (other && other.exportsName) {
-      node.edit.update(other.exportsName)
-    } else {
-      node.edit.update('_$module_' + req.id)
+      return
     }
+
+    if (node.parent.type === 'VariableDeclarator' && node.parent.init === node && node.parent.id.type === 'Identifier') {
+      var variable = node.parent.id
+      var scope = getDeclaredScope(variable)
+      if (scope.scope) {
+        var binding = scope.scope.get(variable.name)
+        binding.rename(name)
+        removeVariableDeclarator(node.parent)
+        return
+      }
+    }
+
+    node.edit.update(name)
   })
 
   if (row.isCycle) {
@@ -331,6 +345,17 @@ function moveCircularDependenciesToStart (rows) {
       var row = rows.splice(i, 1)[0]
       rows.unshift(row)
     }
+  }
+}
+
+function removeVariableDeclarator (node) {
+  if (node.parent.declarations.length === 1) {
+    // Remove the entire declaration.
+    node.parent.edit.update('')
+  } else {
+    // This will leave behind some unnecessary variables, but since they are never used
+    // a minifier should remove them.
+    node.edit.update('__dummy')
   }
 }
 
