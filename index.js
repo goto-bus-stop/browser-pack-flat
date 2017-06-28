@@ -11,7 +11,7 @@ function parseModule (row, index, rows) {
   // Will hold the `module` variable name if necessary.
   var moduleBaseName = null
   // Holds the `module.exports` variable name.
-  var moduleExportsName = row.exportsName = '__module_' + row.id
+  var moduleExportsName = '__module_' + row.id
   if (dedupedRx.test(row.source)) {
     var n = row.source.match(dedupedRx)[1]
     var dedup = rows.filter(function (other) {
@@ -149,6 +149,7 @@ function parseModule (row, index, rows) {
     source.prepend('var ' + moduleExportsName + ' = {};\n')
   }
 
+  row.exportsName = moduleExportsName
   row.flatSource = source
 
   return row
