@@ -104,6 +104,13 @@ function parseModule (row, index, rows) {
     if (node.parent.type === 'AssignmentExpression' && node.parent.left === node &&
         node.parent.parent.type === 'ExpressionStatement') {
       isSimpleExport = getScope(node.object, false) === ast
+
+      var value = node.parent.right
+      if (value.type === 'FunctionExpression') value = value.id
+      else if (value.type === 'ClassExpression') value = value.id
+      if (value && value.type === 'Identifier') {
+        moduleExportsName = '__' + value.name + '_' + row.id
+      }
     }
   }
 
