@@ -8,8 +8,6 @@ var dedupedRx = /^arguments\[4\]\[(\d+)\]/
 var CYCLE_HELPER = 'function r(o){var t=r.r;if(t[o])return t[o].exports;if(r.hasOwnProperty(o))return t[o]={exports:{}},r[o](t[o],t[o].exports),t[o].exports;throw new Error("Cannot find module #"+o)}'
 
 function parseModule (row, index, rows) {
-  // Will hold the `module` variable name if necessary.
-  var moduleBaseName = null
   // Holds the `module.exports` variable name.
   var moduleExportsName = '__module_' + row.id
   if (dedupedRx.test(row.source)) {
@@ -83,18 +81,6 @@ function parseModule (row, index, rows) {
   exportsList = exportsList.filter(isModuleGlobal)
   moduleList = moduleList.filter(isModuleGlobal)
 
-  // If `module` is used as a free variable we need to turn it into an object with an `.exports`
-  // property, to deal with situations like:
-  //
-  //     var a = module;
-  //     a.exports = 'hello'
-  //
-  // Not too common, but it happens…
-  if (moduleList.length > 0) {
-    moduleBaseName = moduleExportsName
-    moduleExportsName += '.exports'
-  }
-
   // Detect simple exports that are just `module.exports = `, we can compile them to a single
   // variable assignment.
   var isSimpleExport = false
@@ -111,9 +97,53 @@ function parseModule (row, index, rows) {
     }
   }
 
+  row.ast = ast
+  row.isSimpleExport = isSimpleExport
+  row.exportsName = moduleExportsName
+  row.hasExports = (moduleExportsList.length + exportsList.length) > 0
+  row.imports = requireCalls
+  row.references = {
+    module: moduleList,
+    exports: exportsList,
+    'module.exports': moduleExportsList,
+    globals: Object.keys(globals).reduce(function (list, name) {
+      return list.concat(identifiers[name].filter(isModuleGlobal))
+    }, [])
+  }
+  row.flatSource = source
+
+  return row
+
+  function isModuleGlobal (id) {
+    return getDeclaredScope(id) === ast
+  }
+}
+
+function rewriteModule (row, i, rows) {
+  var moduleExportsName = row.exportsName
+  var moduleBaseName
+
+  var ast = row.ast
+  var source = row.flatSource
+  var moduleList = row.references.module
+  var moduleExportsList = row.references['module.exports']
+  var exportsList = row.references.exports
+
+  // If `module` is used as a free variable we need to turn it into an object with an `.exports`
+  // property, to deal with situations like:
+  //
+  //     var a = module;
+  //     a.exports = 'hello'
+  //
+  // Not too common, but it happens…
+  if (moduleList.length > 0) {
+    moduleBaseName = moduleExportsName
+    moduleExportsName += '.exports'
+  }
+
   if (!row.isCycle) { // cycles have a function wrapper and don't need to be rewritten
     moduleExportsList.concat(exportsList).forEach(function (node) {
-      if (isSimpleExport) {
+      if (row.isSimpleExport) {
         node.edit.update('var ' + moduleExportsName)
       } else {
         node.edit.update(moduleExportsName)
@@ -126,20 +156,16 @@ function parseModule (row, index, rows) {
         node.edit.update(moduleBaseName)
       }
     })
-    Object.keys(globals).forEach(function (name) {
-      identifiers[name].forEach(function (node) {
-        if (isModuleGlobal(node)) {
-          if (isShorthandProperty(node)) {
-            node.edit.update(node.name + ': __' + node.name + '_' + row.id)
-          } else {
-            node.edit.update('__' + node.name + '_' + row.id)
-          }
-        }
-      })
+    row.references.globals.forEach(function (node) {
+      if (isShorthandProperty(node)) {
+        node.edit.update(node.name + ': __' + node.name + '_' + row.id)
+      } else {
+        node.edit.update('__' + node.name + '_' + row.id)
+      }
     })
   }
 
-  requireCalls.forEach(function (req) {
+  row.imports.forEach(function (req) {
     var node = req.node
     var other = req.requiredModule
     if (other && other.isCycle) {
@@ -161,72 +187,11 @@ function parseModule (row, index, rows) {
       .prepend('var ' + moduleBaseName + ' = { exports: {} };\n')
       .append('\n' + moduleBaseName + ' = ' + moduleExportsName)
     moduleExportsName = moduleBaseName
-  } else if (!isSimpleExport) {
+  } else if (!row.isSimpleExport) {
     source.prepend('var ' + moduleExportsName + ' = {};\n')
   }
 
-  row.exportsName = moduleExportsName
-  row.flatSource = source
-
   return row
-
-  // Get the scope that a declaration will be declared in
-  function getScope (node, blockScope) {
-    var parent = node
-    while ((parent = parent.parent)) {
-      if (isFunction(parent)) {
-        return parent
-      }
-      if (blockScope && parent.type === 'BlockStatement') {
-        return parent
-      }
-      if (parent.type === 'Program') {
-        return parent
-      }
-    }
-    return ast
-  }
-  // Get the scope that this identifier has been declared in
-  function getDeclaredScope (id) {
-    var parent = id
-    // Jump over one parent if this is a function's name--the variables
-    // and parameters _inside_ the function are attached to the FunctionDeclaration
-    // so if a variable inside the function has the same name as the function,
-    // they will conflict.
-    // Here we jump out of the FunctionDeclaration so we can start by looking at the
-    // surrounding scope
-    if (isFunction(id.parent) && id.parent.id === id) {
-      parent = id.parent
-    }
-    while ((parent = parent.parent)) {
-      if (parent.bindings && parent.bindings.indexOf(id.name) !== -1) {
-        return parent
-      }
-    }
-    return ast
-  }
-  function isModuleGlobal (id) {
-    return getDeclaredScope(id) === ast
-  }
-  function registerScopeBindings (node) {
-    if (node.type === 'VariableDeclaration') {
-      var scope = getScope(node, node.kind !== 'var')
-      if (!scope.bindings) scope.bindings = []
-      node.declarations.forEach(function (decl) {
-        scope.bindings.push(decl.id.name)
-      })
-    }
-    if (isFunction(node)) {
-      var scope = getScope(node, false)
-      if (!scope.bindings) scope.bindings = []
-      if (node.id && node.id.type === 'Identifier') scope.bindings.push(node.id.name)
-
-      if (!node.bindings) node.bindings = []
-      node.params.forEach(function (param) {
-        node.bindings.push(param.name)
-      })
-    }
-  }
 }
 
 function flatten (rows, opts) {
@@ -241,7 +206,7 @@ function flatten (rows, opts) {
     bundle.prepend('var __cycle = ' + CYCLE_HELPER + '; __cycle.r = {};\n')
   }
 
-  rows = rows.map(parseModule)
+  rows = rows.map(parseModule).map(rewriteModule)
   moveCircularDependenciesToStart(rows)
   rows.forEach(function (row) {
     if (row.sourceFile && !row.nomap) {
@@ -427,6 +392,66 @@ function isFreeIdentifier (node) {
     (node.parent.type !== 'MemberExpression' || node.parent.object === node ||
       (node.parent.property === node && node.parent.computed))
 }
+
+// Get the scope that a declaration will be declared in
+function getScope (node, blockScope) {
+  var parent = node
+  while (parent.parent) {
+    parent = parent.parent
+    if (isFunction(parent)) {
+      break
+    }
+    if (blockScope && parent.type === 'BlockStatement') {
+      break
+    }
+    if (parent.type === 'Program') {
+      break
+    }
+  }
+  return parent
+}
+
+// Get the scope that this identifier has been declared in
+function getDeclaredScope (id) {
+  var parent = id
+  // Jump over one parent if this is a function's name--the variables
+  // and parameters _inside_ the function are attached to the FunctionDeclaration
+  // so if a variable inside the function has the same name as the function,
+  // they will conflict.
+  // Here we jump out of the FunctionDeclaration so we can start by looking at the
+  // surrounding scope
+  if (isFunction(id.parent) && id.parent.id === id) {
+    parent = id.parent
+  }
+  while (parent.parent) {
+    parent = parent.parent
+    if (parent.bindings && parent.bindings.indexOf(id.name) !== -1) {
+      break
+    }
+  }
+  return parent
+}
+
+function registerScopeBindings (node) {
+  if (node.type === 'VariableDeclaration') {
+    var scope = getScope(node, node.kind !== 'var')
+    if (!scope.bindings) scope.bindings = []
+    node.declarations.forEach(function (decl) {
+      scope.bindings.push(decl.id.name)
+    })
+  }
+  if (isFunction(node)) {
+    var scope = getScope(node, false)
+    if (!scope.bindings) scope.bindings = []
+    if (node.id && node.id.type === 'Identifier') scope.bindings.push(node.id.name)
+
+    if (!node.bindings) node.bindings = []
+    node.params.forEach(function (param) {
+      node.bindings.push(param.name)
+    })
+  }
+}
+
 function isInTopLevelScope (node, lex) {
   var parent = node.parent
   do {
