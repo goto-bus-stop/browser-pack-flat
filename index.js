@@ -10,6 +10,7 @@ var Scope = require('./lib/scope')
 
 var dedupedRx = /^arguments\[4\]\[(\d+)\]/
 var CYCLE_HELPER = 'function r(o){var t=r.r;if(t[o])return t[o].exports;if(r.hasOwnProperty(o))return t[o]={exports:{}},r[o](t[o],t[o].exports),t[o].exports;throw new Error("Cannot find module #"+o)}'
+var DEFAULT_EXPORT = Symbol('default export')
 
 function parseModule (row, index, rows) {
   // Holds the `module.exports` variable name.
@@ -90,11 +91,75 @@ function parseModule (row, index, rows) {
     }
   }
 
+  var exports = new Map()
+  exportsList.concat(moduleExportsList).forEach(function (node) {
+    if (node.parent.type === 'MemberExpression' && node.parent.object === node &&
+        !node.parent.computed && node.parent.property.type === 'Identifier' &&
+        node.parent.parent.type === 'AssignmentExpression') {
+      exports.set(node.parent.property.name, {
+        node: node.parent,
+        name: moduleExportsName + '$$' + node.parent.property.name
+      })
+    } else {
+      row.keepExportObject = true
+    }
+  })
+
+  var imports = new Map()
+  requireCalls.forEach(function (req) {
+    var assignment = req.node.parent
+    var name
+    if (assignment.type === 'VariableDeclarator' && assignment.init === req.node) {
+      name = assignment.id
+    }
+    if (assignment.type === 'AssignmentExpression' && assignment.right === req.node) {
+      name = assignment.left
+    }
+    if (!name || name.type !== 'Identifier') {
+      req.requiredModule.keepExportObject = true
+      return
+    }
+
+    if (!imports.has(req.id)) {
+      var thisImports = {}
+      thisImports[DEFAULT_EXPORT] = []
+      imports.set(req.id, thisImports)
+    }
+
+    var thisImports = imports.get(req.id)
+    var scope = getDeclaredScope(name)
+    var references = scope.scope.getReferences(name.name)
+
+    references.forEach(function (node) {
+      if (node === name) return
+
+      if (node.parent.type === 'MemberExpression' && node.parent.object === node) {
+        var property = node.parent.property
+        if (!node.parent.computed && property.type === 'Identifier' && req.requiredModule.exports.has(property.name)) {
+          thisImports[property.name] = thisImports[property] || []
+          thisImports[property.name].push({
+            module: req.requiredModule,
+            node: node.parent
+          })
+          return
+        }
+      }
+      thisImports[DEFAULT_EXPORT].push({
+        module: req.requiredModule,
+        node: node
+      })
+      req.requiredModule.keepExportObject = true
+    })
+  })
+
+  row.keepExportObject = row.keepExportObject || row.isCycle || row.entry || moduleList.length > 0
   row.ast = ast
   row.isSimpleExport = isSimpleExport
   row.exportsName = moduleExportsName
+  row.exports = exports
+  row.imports = imports
   row.hasExports = (moduleExportsList.length + exportsList.length) > 0
-  row.imports = requireCalls
+  row.requireCalls = requireCalls
   row.references = {
     module: moduleList,
     exports: exportsList,
@@ -147,7 +212,37 @@ function rewriteModule (row, i, rows) {
     }
   }
 
-  row.imports.forEach(function (req) {
+  if (!row.keepExportObject) {
+    row.exports.forEach(function (exp, name) {
+      row.magicString.prepend('var ' + exp.name + ';\n')
+      exp.node.edit.update(exp.name)
+    })
+  }
+
+  row.imports.forEach(function (imports, otherId) {
+    Object.keys(imports).forEach(function (name) {
+      imports[name].forEach(function (req) {
+        var node = req.node
+        var other = req.module
+        if (other.keepExportObject) {
+          return
+        }
+        if (name !== DEFAULT_EXPORT && other.exports.has(name) && !other.isCycle) {
+          node.edit.update(other.exports.get(name).name)
+        } else {
+          if (other && other.isCycle) {
+            node.edit.update('__cycle(' + req.id + ')')
+          } else if (other && other.exportsName) {
+            node.edit.update(other.exportsName)
+          } else {
+            node.edit.update('__module_' + req.id)
+          }
+        }
+      })
+    })
+  })
+
+  row.requireCalls.forEach(function (req) {
     var node = req.node
     var other = req.requiredModule
     var name = other && other.exportsName
@@ -159,13 +254,19 @@ function rewriteModule (row, i, rows) {
       return
     }
 
-    if (node.parent.type === 'VariableDeclarator' && node.parent.init === node && node.parent.id.type === 'Identifier') {
-      var variable = node.parent.id
-      var scope = getDeclaredScope(variable)
-      if (scope.scope) {
-        var binding = scope.scope.get(variable.name)
-        binding.rename(name)
+    if (other) {
+      // Remove the variable declaration if this is something like `var xyz = require('abc')`.
+      if (node.parent.type === 'VariableDeclarator' && node.parent.init === node && node.parent.id.type === 'Identifier') {
+        var scope = getDeclaredScope(node.parent.id)
+        if (scope && other.keepExportObject) {
+          var binding = scope.scope.get(node.parent.id.name)
+          binding.rename(name)
+        }
         removeVariableDeclarator(node.parent)
+        return
+      }
+      if (!other.keepExportObject) {
+        node.edit.update('void 0')
         return
       }
     }
@@ -181,7 +282,7 @@ function rewriteModule (row, i, rows) {
       .prepend('var ' + moduleBaseName + ' = { exports: {} };\n')
       .append('\n' + moduleBaseName + ' = ' + moduleExportsName)
     moduleExportsName = moduleBaseName
-  } else if (!row.isSimpleExport) {
+  } else if (!row.isSimpleExport && row.keepExportObject) {
     magicString.prepend('var ' + moduleExportsName + ' = {};\n')
   }
 }
