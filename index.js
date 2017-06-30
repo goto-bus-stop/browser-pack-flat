@@ -3,6 +3,8 @@ var transformAst = require('transform-ast')
 var through = require('through2')
 var umd = require('umd')
 var json = require('JSONStream')
+var Binding = require('./lib/binding')
+var Scope = require('./lib/scope')
 
 var dedupedRx = /^arguments\[4\]\[(\d+)\]/
 var CYCLE_HELPER = 'function r(o){var t=r.r;if(t[o])return t[o].exports;if(r.hasOwnProperty(o))return t[o]={exports:{}},r[o](t[o],t[o].exports),t[o].exports;throw new Error("Cannot find module #"+o)}'
@@ -27,10 +29,10 @@ function parseModule (row, index, rows) {
   var globalScope = {
     type: 'BrowserPackFlatWrapper',
     parent: null,
-    bindings: Object.create(null)
+    scope: new Scope()
+      .define(new Binding('module'))
+      .define(new Binding('exports'))
   }
-  globalScope.bindings.module = { references: [] }
-  globalScope.bindings.exports = { references: [] }
 
   var source = removeSourceMappingComment(row.source)
   var magicString = transformAst(source, function (node) {
@@ -63,14 +65,12 @@ function parseModule (row, index, rows) {
     })
   }
 
-  // We only care about module-global variables
-  var moduleExportsList = globalScope.bindings.module.references
+  var moduleExportsList = globalScope.scope.getReferences('module')
     .map(function (node) { return node.parent })
     .filter(isModuleExports)
-  var exportsList = globalScope.bindings.exports.references
-  var moduleList = globalScope.bindings.module.references.filter(function (node) {
-    return !isModuleExports(node.parent)
-  })
+  var exportsList = globalScope.scope.getReferences('exports')
+  var moduleList = globalScope.scope.getReferences('module')
+    .filter(function (node) { return !isModuleExports(node.parent) })
 
   // Detect simple exports that are just `module.exports = `, we can compile them to a single
   // variable assignment.
@@ -138,9 +138,9 @@ function rewriteModule (row, i, rows) {
         renameIdentifier(node, moduleBaseName)
       }
     })
-    if (ast.bindings) {
-      Object.keys(ast.bindings).forEach(function (name) {
-        renameBinding(ast.bindings[name], '__' + name + '_' + row.id)
+    if (ast.scope) {
+      ast.scope.forEach(function (binding, name) {
+        binding.rename('__' + name + '_' + row.id)
       })
     }
   }
@@ -371,12 +371,6 @@ function renameIdentifier (node, name) {
   }
 }
 
-function renameBinding (binding, name) {
-  binding.references.forEach(function (node) {
-    renameIdentifier(node, name)
-  })
-}
-
 // Get the scope that a declaration will be declared in
 function getScope (node, blockScope) {
   var parent = node
@@ -409,7 +403,7 @@ function getDeclaredScope (id) {
   }
   while (parent.parent) {
     parent = parent.parent
-    if (parent.bindings && parent.bindings[id.name]) {
+    if (parent.scope && parent.scope.has(id.name)) {
       break
     }
   }
@@ -419,43 +413,35 @@ function getDeclaredScope (id) {
 function registerScopeBindings (node) {
   if (node.type === 'VariableDeclaration') {
     var scope = getScope(node, node.kind !== 'var')
-    if (!scope.bindings) scope.bindings = Object.create(null)
+    if (!scope.scope) scope.scope = new Scope()
     node.declarations.forEach(function (decl) {
-      scope.bindings[decl.id.name] = {
-        references: [decl.id]
-      }
+      scope.scope.define(new Binding(decl.id.name, decl.id))
     })
   }
   if (node.type === 'FunctionDeclaration') {
     var scope = getScope(node, false)
-    if (!scope.bindings) scope.bindings = Object.create(null)
+    if (!scope.scope) scope.scope = new Scope()
     if (node.id && node.id.type === 'Identifier') {
-      scope.bindings[node.id.name] = {
-        references: [node.id]
-      }
+      scope.scope.define(new Binding(node.id.name, node.id))
     }
   }
   if (isFunction(node)) {
-    if (!node.bindings) node.bindings = Object.create(null)
+    if (!node.scope) node.scope = new Scope()
     node.params.forEach(function (param) {
-      node.bindings[param.name] = {
-        references: [param]
-      }
+      node.scope.define(new Binding(param.name, param))
     })
   }
   if (node.type === 'FunctionExpression') {
     if (node.id && node.id.type === 'Identifier') {
-      node.bindings[node.id.name] = {
-        references: [node.id]
-      }
+      node.scope.define(new Binding(node.id.name, node.id))
     }
   }
 }
 
 function registerReference (node) {
   var scope = getDeclaredScope(node)
-  if (scope.bindings && scope.bindings[node.name]) {
-    scope.bindings[node.name].references.push(node)
+  if (scope.scope && scope.scope.has(node.name)) {
+    scope.scope.add(node.name, node)
   }
 }
 
