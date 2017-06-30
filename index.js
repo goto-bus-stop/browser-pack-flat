@@ -134,25 +134,20 @@ function rewriteModule (row, i, rows) {
       if (row.isSimpleExport) {
         node.edit.update('var ' + moduleExportsName)
       } else {
-        node.edit.update(moduleExportsName)
+        renameIdentifier(node, moduleExportsName)
       }
     })
     moduleList.forEach(function (node) {
       if (node.parent.type === 'UnaryExpression' && node.parent.operator === 'typeof') {
         node.parent.edit.update('"object"')
       } else {
-        node.edit.update(moduleBaseName)
+        renameIdentifier(node, moduleBaseName)
       }
     })
     if (ast.bindings) {
       Object.keys(ast.bindings).forEach(function (name) {
-        ast.bindings[name].references.forEach(function (node, i) {
-          // console.log(name, '→', '__' + node.name + '_' + row.id)
-          if (isShorthandProperty(node)) {
-            node.edit.update(node.name + ': __' + node.name + '_' + row.id)
-          } else {
-            node.edit.update('__' + node.name + '_' + row.id)
-          }
+        ast.bindings[name].references.forEach(function (node) {
+          renameIdentifier(node, '__' + node.name + '_' + row.id)
         })
       })
     }
@@ -169,8 +164,6 @@ function rewriteModule (row, i, rows) {
       node.edit.update('__module_' + req.id)
     }
   })
-
-  row.hasExports = (moduleExportsList.length + exportsList.length) > 0
 
   if (row.isCycle) {
     source.prepend('__cycle[' + JSON.stringify(row.id) + '] = (function (module, exports) {\n')
@@ -384,6 +377,14 @@ function isFreeIdentifier (node) {
     !isObjectKey(node) &&
     (node.parent.type !== 'MemberExpression' || node.parent.object === node ||
       (node.parent.property === node && node.parent.computed))
+}
+
+function renameIdentifier (node, name) {
+  if (isShorthandProperty(node)) {
+    node.edit.update(node.name + ': ' + name)
+  } else {
+    node.edit.update(name)
+  }
 }
 
 // Get the scope that a declaration will be declared in
