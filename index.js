@@ -94,10 +94,7 @@ function parseModule (row, index, rows) {
   row.references = {
     module: moduleList,
     exports: exportsList,
-    'module.exports': moduleExportsList,
-    globals: Object.keys(ast.bindings || {}).reduce(function (list, name) {
-      return list.concat(ast.bindings[name].references)
-    }, [])
+    'module.exports': moduleExportsList
   }
   row.magicString = magicString
 
