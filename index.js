@@ -18,41 +18,39 @@ function parseModule (row, index, rows) {
     row.source = dedup.source
   }
 
-  // variable references
-  var moduleList = []
-  var moduleExportsList = []
-  var exportsList = []
   var requireCalls = []
 
   var ast
+  // hack to keep track of `module`/`exports` references correctly.
+  // in node.js they're defined by a function wrapper, so their scope is
+  // one level higher-ish than the module scope. this emulates that.
+  var globalScope = {
+    type: 'BrowserPackFlatWrapper',
+    parent: null,
+    bindings: Object.create(null)
+  }
+  globalScope.bindings.module = { references: [] }
+  globalScope.bindings.exports = { references: [] }
+
   var source = removeSourceMappingComment(row.source)
   var magicString = transformAst(source, function (node) {
     if (node.type === 'Program') ast = node
     registerScopeBindings(node)
 
-    // Bit awkward, `transform-ast` traverses children before parents
-    // so we don't have the scope information of parent nodes here just yet.
-    // So we collect everything that we may have to replace, and then filter
-    // it down to only actually-module-global bindings below.
-    if (isModuleExports(node)) {
-      moduleExportsList.push(node)
-    } else if (isExports(node)) {
-      exportsList.push(node)
-    } else if (isRequire(node)) {
+    if (isRequire(node)) {
       var required = node.arguments[0].value
       if (row.deps[required] && moduleExists(row.deps[required])) {
-        var other = rows.find(function (other) { return other.id === row.deps[required] })
+        var other = rows.byId[row.deps[required]]
         requireCalls.push({
           id: row.deps[required],
           node: node,
           requiredModule: other
         })
       }
-    } else if (isModule(node)) {
-      moduleList.push(node)
     }
   })
   magicString.walk(function (node) {
+    ast.parent = globalScope
     if (isFreeIdentifier(node)) {
       registerReference(node)
     } else if (isShorthandProperty(node)) {
@@ -66,9 +64,13 @@ function parseModule (row, index, rows) {
   }
 
   // We only care about module-global variables
-  moduleExportsList = moduleExportsList.filter(function (node) { return isModuleGlobal(node.object) })
-  exportsList = exportsList.filter(isModuleGlobal)
-  moduleList = moduleList.filter(isModuleGlobal)
+  var moduleExportsList = globalScope.bindings.module.references
+    .map(function (node) { return node.parent })
+    .filter(isModuleExports)
+  var exportsList = globalScope.bindings.exports.references
+  var moduleList = globalScope.bindings.module.references.filter(function (node) {
+    return !isModuleExports(node.parent)
+  })
 
   // Detect simple exports that are just `module.exports = `, we can compile them to a single
   // variable assignment.
@@ -97,12 +99,6 @@ function parseModule (row, index, rows) {
     'module.exports': moduleExportsList
   }
   row.magicString = magicString
-
-  return row
-
-  function isModuleGlobal (id) {
-    return getDeclaredScope(id) === ast
-  }
 }
 
 function rewriteModule (row, i, rows) {
@@ -144,9 +140,7 @@ function rewriteModule (row, i, rows) {
     })
     if (ast.bindings) {
       Object.keys(ast.bindings).forEach(function (name) {
-        ast.bindings[name].references.forEach(function (node) {
-          renameIdentifier(node, '__' + node.name + '_' + row.id)
-        })
+        renameBinding(ast.bindings[name], '__' + name + '_' + row.id)
       })
     }
   }
@@ -174,12 +168,13 @@ function rewriteModule (row, i, rows) {
   } else if (!row.isSimpleExport) {
     magicString.prepend('var ' + moduleExportsName + ' = {};\n')
   }
-
-  return row
 }
 
 function flatten (rows, opts) {
   rows = sortModules(rows)
+  rows.byId = Object.create(null)
+  rows.forEach(function (row) { rows.byId[row.id] = row })
+
   var containsCycles = detectCycles(rows)
 
   var bundle = new Bundle()
@@ -190,7 +185,8 @@ function flatten (rows, opts) {
     bundle.prepend('var __cycle = ' + CYCLE_HELPER + '; __cycle.r = {};\n')
   }
 
-  rows = rows.map(parseModule).map(rewriteModule)
+  rows.forEach(parseModule)
+  rows.forEach(rewriteModule)
   moveCircularDependenciesToStart(rows)
   rows.forEach(function (row) {
     if (row.sourceFile && !row.nomap) {
@@ -296,9 +292,6 @@ function sortModules (rows) {
  * function, which will execute the requested module and return its exports.
  */
 function detectCycles (rows) {
-  var rowsById = {}
-  rows.forEach(function (row) { rowsById[row.id] = row })
-
   var cyclicalModules = new Set
   rows.forEach(function (module) {
     var visited = []
@@ -316,7 +309,7 @@ function detectCycles (rows) {
       visited.push(row)
       Object.keys(row.deps).forEach(function (k) {
         var dep = row.deps[k]
-        var other = rowsById[dep]
+        var other = rows.byId[dep]
         if (other) check(other, visited)
       })
       visited.pop()
@@ -353,13 +346,6 @@ function isModuleExports (node) {
     (node.property.type === 'Identifier' && node.property.name === 'exports' ||
       node.property.type === 'Literal' && node.property.value === 'exports')
 }
-function isModule (node) {
-  return isFreeIdentifier(node) && node.name === 'module' &&
-    !isModuleExports(node.parent)
-}
-function isExports (node) {
-  return isFreeIdentifier(node) && node.name === 'exports'
-}
 function isRequire (node) {
   return node.type === 'CallExpression' &&
     node.callee.type === 'Identifier' && node.callee.name === 'require'
@@ -383,6 +369,12 @@ function renameIdentifier (node, name) {
   } else {
     node.edit.update(name)
   }
+}
+
+function renameBinding (binding, name) {
+  binding.references.forEach(function (node) {
+    renameIdentifier(node, name)
+  })
 }
 
 // Get the scope that a declaration will be declared in
