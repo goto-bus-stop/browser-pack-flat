@@ -23,8 +23,6 @@ function parseModule (row, index, rows) {
   var moduleExportsList = []
   var exportsList = []
   var requireCalls = []
-  var globals = {}
-  var identifiers = {}
 
   var ast
   var source = transformAst(row.source, function (node) {
@@ -51,25 +49,15 @@ function parseModule (row, index, rows) {
       }
     } else if (isModule(node)) {
       moduleList.push(node)
-    } else {
-      if (isFreeIdentifier(node)) {
-        pushIdentifier(node)
-      } else if (isShorthandProperty(node)) {
-        pushIdentifier(node)
-      }
-      if (isTopLevelDefinition(node)) {
-        globals[node.name] = true
-      }
     }
   })
-  function pushIdentifier (node) {
-    var name = node.name
-    if (!Array.isArray(identifiers[name])) {
-      identifiers[name] = [node]
-    } else {
-      identifiers[name].push(node)
+  source.walk(function (node) {
+    if (isFreeIdentifier(node)) {
+      registerReference(node)
+    } else if (isShorthandProperty(node)) {
+      registerReference(node)
     }
-  }
+  })
   function moduleExists (id) {
     return rows.some(function (row) {
       return String(row.id) === String(id)
@@ -106,8 +94,8 @@ function parseModule (row, index, rows) {
     module: moduleList,
     exports: exportsList,
     'module.exports': moduleExportsList,
-    globals: Object.keys(globals).reduce(function (list, name) {
-      return list.concat(identifiers[name].filter(isModuleGlobal))
+    globals: Object.keys(ast.bindings || {}).reduce(function (list, name) {
+      return list.concat(ast.bindings[name].references)
     }, [])
   }
   row.flatSource = source
@@ -156,13 +144,18 @@ function rewriteModule (row, i, rows) {
         node.edit.update(moduleBaseName)
       }
     })
-    row.references.globals.forEach(function (node) {
-      if (isShorthandProperty(node)) {
-        node.edit.update(node.name + ': __' + node.name + '_' + row.id)
-      } else {
-        node.edit.update('__' + node.name + '_' + row.id)
-      }
-    })
+    if (ast.bindings) {
+      Object.keys(ast.bindings).forEach(function (name) {
+        ast.bindings[name].references.forEach(function (node, i) {
+          // console.log(name, '→', '__' + node.name + '_' + row.id)
+          if (isShorthandProperty(node)) {
+            node.edit.update(node.name + ': __' + node.name + '_' + row.id)
+          } else {
+            node.edit.update('__' + node.name + '_' + row.id)
+          }
+        })
+      })
+    }
   }
 
   row.imports.forEach(function (req) {
@@ -425,7 +418,7 @@ function getDeclaredScope (id) {
   }
   while (parent.parent) {
     parent = parent.parent
-    if (parent.bindings && parent.bindings.indexOf(id.name) !== -1) {
+    if (parent.bindings && parent.bindings[id.name]) {
       break
     }
   }
@@ -435,44 +428,44 @@ function getDeclaredScope (id) {
 function registerScopeBindings (node) {
   if (node.type === 'VariableDeclaration') {
     var scope = getScope(node, node.kind !== 'var')
-    if (!scope.bindings) scope.bindings = []
+    if (!scope.bindings) scope.bindings = Object.create(null)
     node.declarations.forEach(function (decl) {
-      scope.bindings.push(decl.id.name)
+      scope.bindings[decl.id.name] = {
+        references: [decl.id]
+      }
     })
+  }
+  if (node.type === 'FunctionDeclaration') {
+    var scope = getScope(node, false)
+    if (!scope.bindings) scope.bindings = Object.create(null)
+    if (node.id && node.id.type === 'Identifier') {
+      scope.bindings[node.id.name] = {
+        references: [node.id]
+      }
+    }
   }
   if (isFunction(node)) {
-    var scope = getScope(node, false)
-    if (!scope.bindings) scope.bindings = []
-    if (node.id && node.id.type === 'Identifier') scope.bindings.push(node.id.name)
-
-    if (!node.bindings) node.bindings = []
+    if (!node.bindings) node.bindings = Object.create(null)
     node.params.forEach(function (param) {
-      node.bindings.push(param.name)
+      node.bindings[param.name] = {
+        references: [param]
+      }
     })
   }
+  if (node.type === 'FunctionExpression') {
+    if (node.id && node.id.type === 'Identifier') {
+      node.bindings[node.id.name] = {
+        references: [node.id]
+      }
+    }
+  }
 }
 
-function isInTopLevelScope (node, lex) {
-  var parent = node.parent
-  do {
-    if (parent.type === 'FunctionDeclaration' || parent.type === 'FunctionExpression' || parent.type === 'ArrowFunctionExpression') {
-      return false
-    }
-    if (lex && parent.type === 'BlockStatement') {
-      return false
-    }
-  } while ((parent = parent.parent))
-  return true
-}
-function isTopLevelDefinition (node) {
-  if (node.type === 'Identifier' && node.parent.type === 'FunctionDeclaration') {
-    return isInTopLevelScope(node.parent, false)
+function registerReference (node) {
+  var scope = getDeclaredScope(node)
+  if (scope.bindings && scope.bindings[node.name]) {
+    scope.bindings[node.name].references.push(node)
   }
-  if (node.type === 'Identifier' && node.parent.type === 'VariableDeclarator' &&
-      node.parent.id === node) {
-    return isInTopLevelScope(node.parent, node.parent.parent.kind !== 'var')
-  }
-  return false
 }
 
 function isFunction (node) {
