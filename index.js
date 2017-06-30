@@ -25,7 +25,8 @@ function parseModule (row, index, rows) {
   var requireCalls = []
 
   var ast
-  var source = transformAst(row.source, function (node) {
+  var source = removeSourceMappingComment(row.source)
+  var magicString = transformAst(source, function (node) {
     if (node.type === 'Program') ast = node
     registerScopeBindings(node)
 
@@ -51,7 +52,7 @@ function parseModule (row, index, rows) {
       moduleList.push(node)
     }
   })
-  source.walk(function (node) {
+  magicString.walk(function (node) {
     if (isFreeIdentifier(node)) {
       registerReference(node)
     } else if (isShorthandProperty(node)) {
@@ -98,7 +99,7 @@ function parseModule (row, index, rows) {
       return list.concat(ast.bindings[name].references)
     }, [])
   }
-  row.flatSource = source
+  row.magicString = magicString
 
   return row
 
@@ -112,7 +113,7 @@ function rewriteModule (row, i, rows) {
   var moduleBaseName
 
   var ast = row.ast
-  var source = row.flatSource
+  var magicString = row.magicString
   var moduleList = row.references.module
   var moduleExportsList = row.references['module.exports']
   var exportsList = row.references.exports
@@ -166,15 +167,15 @@ function rewriteModule (row, i, rows) {
   })
 
   if (row.isCycle) {
-    source.prepend('__cycle[' + JSON.stringify(row.id) + '] = (function (module, exports) {\n')
-    source.append('\n});')
+    magicString.prepend('__cycle[' + JSON.stringify(row.id) + '] = (function (module, exports) {\n')
+    magicString.append('\n});')
   } else if (moduleBaseName) {
-    source
+    magicString
       .prepend('var ' + moduleBaseName + ' = { exports: {} };\n')
       .append('\n' + moduleBaseName + ' = ' + moduleExportsName)
     moduleExportsName = moduleBaseName
   } else if (!row.isSimpleExport) {
-    source.prepend('var ' + moduleExportsName + ' = {};\n')
+    magicString.prepend('var ' + moduleExportsName + ' = {};\n')
   }
 
   return row
@@ -200,7 +201,7 @@ function flatten (rows, opts) {
     }
     bundle.addSource({
       filename: row.sourceFile,
-      content: row.flatSource
+      content: row.magicString
     })
   })
 
@@ -471,4 +472,8 @@ function registerReference (node) {
 
 function isFunction (node) {
   return node.type === 'FunctionDeclaration' || node.type === 'FunctionExpression' || node.type === 'ArrowFunctionExpression'
+}
+
+function removeSourceMappingComment (str) {
+  return str.replace(/^\s*\/(?:\/|\*)[@#]\s+sourceMappingURL=data:(?:application|text)\/json;(?:charset[:=]\S+?;)?base64,(?:.*)$/mg, '')
 }
