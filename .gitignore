@@ -1,4 +1,4 @@
 node_modules/
-test/self.expected.js
-test/self.actual.js
+test/self.*.expected.js
+test/self.*.actual.js
 actual.js
