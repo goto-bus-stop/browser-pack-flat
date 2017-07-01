@@ -1,17 +1,17 @@
 (function(){
-var __ThisIsAClass_2 = class ThisIsAClass {}
+var _$ThisIsAClass_2 = class ThisIsAClass {}
 
-var __thisIsAFunction_3 = function thisIsAFunction () {}
+var _$thisIsAFunction_3 = function thisIsAFunction () {}
 
-var __thisIsAReference_4 = __thisIsAReference_4
+var _$thisIsAReference_4 = __thisIsAReference_4
 
 function __thisIsAReference_4 () {}
 
-var __module_1 = {};
+var _$app_1 = {};
 console.log(
-  __thisIsAFunction_3.name,
-  __ThisIsAClass_2.name,
-  function () { __thisIsAReference_4 }.toString()
+  _$thisIsAFunction_3.name,
+  _$ThisIsAClass_2.name,
+  function () { _$thisIsAReference_4 }.toString()
 )
 
 }());

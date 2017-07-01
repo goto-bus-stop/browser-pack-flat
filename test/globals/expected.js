@@ -1,19 +1,19 @@
 (function(){
-var __module_2 = {};
+var _$fn_2 = {};
 function __globalFunction_2 () {
   var globalFunction = null
 }
 
-var __module_3 = {};
+var _$other_3 = {};
 var __somevar_3 = 1
 console.log(__somevar_3)
 
-var __module_1 = {};
+var _$app_1 = {};
 var __somevar_1 = 0
 
-__module_3
+_$other_3
 console.log(__somevar_1)
 
-__module_2
+_$fn_2
 
 }());

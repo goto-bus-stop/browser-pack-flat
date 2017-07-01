@@ -1,10 +1,10 @@
 (function(){
-var __module_2 = 'hello'
+var _$hello_2 = 'hello'
 
-var __module_3 = {};
-var __world_3 = __module_3 = 'world'
+var _$world_3 = {};
+var __world_3 = _$world_3 = 'world'
 
-var __module_1 = {};
-console.log(__module_2, __module_3)
+var _$app_1 = {};
+console.log(_$hello_2, _$world_3)
 
 }());

@@ -1,14 +1,14 @@
 (function(){
-var __module_2 = 'a/xyz.js'
+var _$xyz_2 = 'a/xyz.js'
 
-var __module_1 = __module_2
+var _$a_1 = _$xyz_2
 
-var __module_5 = 'b/xyz.js'
+var _$xyz_5 = 'b/xyz.js'
 
-var __module_4 = __module_5
+var _$b_4 = _$xyz_5
 
-var __module_3 = {};
-var __a_3 = __module_1
-var __b_3 = __module_4
+var _$app_3 = {};
+var __a_3 = _$a_1
+var __b_3 = _$b_4
 
 }());

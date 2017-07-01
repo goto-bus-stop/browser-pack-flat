@@ -1,3 +1,5 @@
+var pathParse = require('path-parse')
+var path = require('path')
 var Bundle = require('magic-string').Bundle
 var transformAst = require('transform-ast')
 var through = require('through2')
@@ -11,7 +13,7 @@ var CYCLE_HELPER = 'function r(o){var t=r.r;if(t[o])return t[o].exports;if(r.has
 
 function parseModule (row, index, rows) {
   // Holds the `module.exports` variable name.
-  var moduleExportsName = '__module_' + row.id
+  var moduleExportsName = '_$' + getModuleName(row.file || '') + '_' + row.id
   if (dedupedRx.test(row.source)) {
     var n = row.source.match(dedupedRx)[1]
     var dedup = rows.filter(function (other) {
@@ -83,7 +85,7 @@ function parseModule (row, index, rows) {
 
       var name = getNodeName(node.parent.right)
       if (name) {
-        moduleExportsName = '__' + name + '_' + row.id
+        moduleExportsName = '_$' + name + '_' + row.id
       }
     }
   }
@@ -149,16 +151,16 @@ function rewriteModule (row, i, rows) {
     var node = req.node
     var other = req.requiredModule
     if (other && other.isCycle) {
-      node.edit.update('__cycle(' + req.id + ')')
+      node.edit.update('_$cycle(' + req.id + ')')
     } else if (other && other.exportsName) {
       node.edit.update(other.exportsName)
     } else {
-      node.edit.update('__module_' + req.id)
+      node.edit.update('_$module_' + req.id)
     }
   })
 
   if (row.isCycle) {
-    magicString.prepend('__cycle[' + JSON.stringify(row.id) + '] = (function (module, exports) {\n')
+    magicString.prepend('_$cycle[' + JSON.stringify(row.id) + '] = (function (module, exports) {\n')
     magicString.append('\n});')
   } else if (moduleBaseName) {
     magicString
@@ -182,7 +184,7 @@ function flatten (rows, opts) {
 
   // Add the circular dependency runtime if necessary.
   if (containsCycles) {
-    bundle.prepend('var __cycle = ' + CYCLE_HELPER + '; __cycle.r = {};\n')
+    bundle.prepend('var _$cycle = ' + CYCLE_HELPER + '; _$cycle.r = {};\n')
   }
 
   rows.forEach(parseModule)
@@ -288,7 +290,7 @@ function sortModules (rows) {
  * Detect cyclical dependencies in the bundle. All modules in a dependency cycle
  * are moved to the top of the bundle and wrapped in functions so they're not
  * evaluated immediately. When other modules need a module that's in a dependency
- * cycle, instead of using the module's exportName, it'll call the `__cycle` runtime
+ * cycle, instead of using the module's exportName, it'll call the `_$cycle` runtime
  * function, which will execute the requested module and return its exports.
  */
 function detectCycles (rows) {
@@ -451,4 +453,24 @@ function isFunction (node) {
 
 function removeSourceMappingComment (str) {
   return str.replace(/^\s*\/(?:\/|\*)[@#]\s+sourceMappingURL=data:(?:application|text)\/json;(?:charset[:=]\S+?;)?base64,(?:.*)$/mg, '')
+}
+
+function getModuleName (file) {
+  var parts = pathParse(file)
+  var name = parts.base === 'index.js'
+    ? path.basename(parts.dir)
+    : parts.name
+  return toIdentifier(name) || 'module'
+}
+
+// Yoinked from babel:
+// https://github.com/babel/babel/blob/9ad660bbe103a3484b780a1f2f2e124037b3ee0a/packages/babel-types/src/converters.js#L135
+function toIdentifier(name) {
+  return name
+    // replace all non-valid identifiers with dashes
+    .replace(/[^a-zA-Z0-9$_]/g, '-')
+    // remove all dashes and numbers from start of name
+    .replace(/^[-0-9]+/, "")
+    // camel case
+    .replace(/[-\s]+(.)?/g, function (match, c) { return c ? c.toUpperCase() : '' })
 }
