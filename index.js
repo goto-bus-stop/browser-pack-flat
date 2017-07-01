@@ -13,7 +13,7 @@ var CYCLE_HELPER = 'function r(o){var t=r.r;if(t[o])return t[o].exports;if(r.has
 
 function parseModule (row, index, rows) {
   // Holds the `module.exports` variable name.
-  var moduleExportsName = '_$' + getModuleName(row.file || '') + '_' + row.id
+  var moduleExportsName = '_$' + getModuleName(row.file || '') + '_' + toIdentifier(row.id)
   if (dedupedRx.test(row.source)) {
     var n = row.source.match(dedupedRx)[1]
     var dedup = rows.filter(function (other) {
@@ -85,7 +85,7 @@ function parseModule (row, index, rows) {
 
       var name = getNodeName(node.parent.right)
       if (name) {
-        moduleExportsName = '_$' + name + '_' + row.id
+        moduleExportsName = '_$' + name + '_' + toIdentifier(row.id)
       }
     }
   }
@@ -142,7 +142,7 @@ function rewriteModule (row, i, rows) {
     })
     if (ast.scope) {
       ast.scope.forEach(function (binding, name) {
-        binding.rename('__' + name + '_' + row.id)
+        binding.rename('__' + name + '_' + toIdentifier(row.id))
       })
     }
   }
@@ -151,11 +151,11 @@ function rewriteModule (row, i, rows) {
     var node = req.node
     var other = req.requiredModule
     if (other && other.isCycle) {
-      node.edit.update('_$cycle(' + req.id + ')')
+      node.edit.update('_$cycle(' + JSON.stringify(req.id) + ')')
     } else if (other && other.exportsName) {
       node.edit.update(other.exportsName)
     } else {
-      node.edit.update('_$module_' + req.id)
+      node.edit.update('_$module_' + toIdentifier(req.id))
     }
   })
 
@@ -466,7 +466,7 @@ function getModuleName (file) {
 // Yoinked from babel:
 // https://github.com/babel/babel/blob/9ad660bbe103a3484b780a1f2f2e124037b3ee0a/packages/babel-types/src/converters.js#L135
 function toIdentifier(name) {
-  return name
+  return String(name)
     // replace all non-valid identifiers with dashes
     .replace(/[^a-zA-Z0-9$_]/g, '-')
     // remove all dashes and numbers from start of name
