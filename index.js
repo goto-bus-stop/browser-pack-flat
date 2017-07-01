@@ -14,7 +14,7 @@ var DEFAULT_EXPORT = Symbol('default export')
 
 function parseModule (row, index, rows) {
   // Holds the `module.exports` variable name.
-  var moduleExportsName = '_$' + getModuleName(row.file || '') + '_' + row.id
+  row.exportsName = '_$' + getModuleName(row.file || '') + '_' + row.id
   if (dedupedRx.test(row.source)) {
     var n = row.source.match(dedupedRx)[1]
     var dedup = rows.filter(function (other) {
@@ -84,78 +84,32 @@ function parseModule (row, index, rows) {
         node.parent.parent.type === 'ExpressionStatement') {
       isSimpleExport = getScope(node.object, false) === ast
 
+      // Change the module variable name to something nice if a named thing is being exported.
       var name = getNodeName(node.parent.right)
       if (name) {
-        moduleExportsName = '_$' + name + '_' + row.id
+        row.exportsName = '_$' + name + '_' + row.id
       }
     }
   }
 
-  var exports = new Map()
-  exportsList.concat(moduleExportsList).forEach(function (node) {
-    if (node.parent.type === 'MemberExpression' && node.parent.object === node &&
-        !node.parent.computed && node.parent.property.type === 'Identifier' &&
-        node.parent.parent.type === 'AssignmentExpression') {
-      exports.set(node.parent.property.name, {
-        node: node.parent,
-        name: moduleExportsName + '$$' + node.parent.property.name
-      })
-    } else {
-      row.keepExportObject = true
-    }
-  })
+  // Need to keep the exports object in a few cases:
+  row.keepExportObject =
+    // If this is a cyclical module, because the module can only be accessed thru its exports object
+    // (through the cycle() helper)
+    row.isCycle ||
+    // If this is the entry module, since we may need to expose its exports object to the world
+    row.entry ||
+    // If this module uses the `module` variable, since it will get a wrapper. This one can probably
+    // be avoided but that's not happening right now.
+    moduleList.length > 0
 
-  var imports = new Map()
-  requireCalls.forEach(function (req) {
-    var assignment = req.node.parent
-    var name
-    if (assignment.type === 'VariableDeclarator' && assignment.init === req.node) {
-      name = assignment.id
-    }
-    if (assignment.type === 'AssignmentExpression' && assignment.right === req.node) {
-      name = assignment.left
-    }
-    if (!name || name.type !== 'Identifier') {
-      req.requiredModule.keepExportObject = true
-      return
-    }
+  var exports = collectExports(row, globalScope)
+  if (exports.has(DEFAULT_EXPORT)) row.keepExportObject = true
 
-    if (!imports.has(req.id)) {
-      var thisImports = {}
-      thisImports[DEFAULT_EXPORT] = []
-      imports.set(req.id, thisImports)
-    }
+  var imports = collectImports(row, requireCalls)
 
-    var thisImports = imports.get(req.id)
-    var scope = getDeclaredScope(name)
-    var references = scope.scope.getReferences(name.name)
-
-    references.forEach(function (node) {
-      if (node === name) return
-
-      if (node.parent.type === 'MemberExpression' && node.parent.object === node) {
-        var property = node.parent.property
-        if (!node.parent.computed && property.type === 'Identifier' && req.requiredModule.exports.has(property.name)) {
-          thisImports[property.name] = thisImports[property] || []
-          thisImports[property.name].push({
-            module: req.requiredModule,
-            node: node.parent
-          })
-          return
-        }
-      }
-      thisImports[DEFAULT_EXPORT].push({
-        module: req.requiredModule,
-        node: node
-      })
-      req.requiredModule.keepExportObject = true
-    })
-  })
-
-  row.keepExportObject = row.keepExportObject || row.isCycle || row.entry || moduleList.length > 0
   row.ast = ast
   row.isSimpleExport = isSimpleExport
-  row.exportsName = moduleExportsName
   row.exports = exports
   row.imports = imports
   row.hasExports = (moduleExportsList.length + exportsList.length) > 0
@@ -166,6 +120,97 @@ function parseModule (row, index, rows) {
     'module.exports': moduleExportsList
   }
   row.magicString = magicString
+}
+
+function collectExports (row, globalScope) {
+  var exports = new Map()
+  var exportsList = globalScope.scope.getReferences('exports')
+  var moduleExportsList = globalScope.scope.getReferences('module')
+    .map(function (node) { return node.parent })
+    .filter(isModuleExports)
+
+  exportsList.concat(moduleExportsList).forEach(function (node) {
+    // This thing checks for `exports.xyz =` cases.
+    if (node.parent.type === 'MemberExpression' && node.parent.object === node &&
+        !node.parent.computed && node.parent.property.type === 'Identifier' &&
+        node.parent.parent.type === 'AssignmentExpression') {
+      exports.set(node.parent.property.name, {
+        node: node.parent,
+        name: row.exportsName + '$$' + node.parent.property.name
+      })
+    } else {
+      exports.set(DEFAULT_EXPORT, {
+        node: node,
+        name: row.exportsName
+      })
+    }
+  })
+
+  return exports
+}
+
+function collectImports (row, requireCalls) {
+  var imports = new Map()
+
+  requireCalls.forEach(function (req) {
+    var other = req.requiredModule
+
+    // Find name for this import in the module.
+    var assignment = req.node.parent
+    var name
+    if (assignment.type === 'VariableDeclarator' && assignment.init === req.node) {
+      name = assignment.id
+    }
+    if (assignment.type === 'AssignmentExpression' && assignment.right === req.node) {
+      name = assignment.left
+    }
+
+    var thisImports = imports.get(req.id)
+    if (!thisImports) {
+      thisImports = Object.create(null)
+      thisImports[DEFAULT_EXPORT] = []
+      imports.set(req.id, thisImports)
+    }
+
+    // If the `require()` result is used for something other than assigning or
+    // `.xyz`-ing, we bail out and use the exports object.
+    if (!name || name.type !== 'Identifier') {
+      thisImports[DEFAULT_EXPORT].push({
+        node: req.node,
+        module: other
+      })
+      other.keepExportObject = true
+      return
+    }
+
+    var scope = getDeclaredScope(name)
+    var references = scope.scope.getReferences(name.name)
+
+    references.forEach(function (node) {
+      if (node === name) return // ignore `xyz = require('abc')` assignment
+
+      // Collect `.xyz` uses of the module, which can (maybe) be rewritten to simple variables
+      if (node.parent.type === 'MemberExpression' && node.parent.object === node) {
+        var property = node.parent.property
+        if (!node.parent.computed && property.type === 'Identifier' && other.exports.has(property.name)) {
+          thisImports[property.name] = thisImports[property] || []
+          thisImports[property.name].push({
+            module: other,
+            node: node.parent
+          })
+          return
+        }
+      }
+      // Otherwise bail out and use the exports object.
+      thisImports[DEFAULT_EXPORT].push({
+        module: other,
+        node: node
+      })
+      other.keepExportObject = true
+    })
+  })
+
+  return imports
 }
 
 function rewriteModule (row, i, rows) {
@@ -231,11 +276,11 @@ function rewriteModule (row, i, rows) {
           node.edit.update(other.exports.get(name).name)
         } else {
           if (other && other.isCycle) {
-            node.edit.update('__cycle(' + req.id + ')')
+            node.edit.update('_$cycle(' + req.id + ')')
           } else if (other && other.exportsName) {
             node.edit.update(other.exportsName)
           } else {
-            node.edit.update('__module_' + req.id)
+            node.edit.update('_$module_' + req.id)
           }
         }
       })
@@ -247,7 +292,7 @@ function rewriteModule (row, i, rows) {
     var other = req.requiredModule
     var name = other && other.exportsName
       ? other.exportsName
-      : '__module_' + req.id
+      : '_$module_' + req.id
 
     if (other && other.isCycle) {
       node.edit.update('_$cycle(' + req.id + ')')
@@ -456,7 +501,7 @@ function removeVariableDeclarator (node) {
   } else {
     // This will leave behind some unnecessary variables, but since they are never used
     // a minifier should remove them.
-    node.edit.update('__dummy')
+    node.edit.update('_$dummy')
   }
 }
 
