@@ -13,7 +13,7 @@ var CYCLE_HELPER = 'function r(o){var t=r.r;if(t[o])return t[o].exports;if(r.has
 
 function parseModule (row, index, rows) {
   // Holds the `module.exports` variable name.
-  var moduleExportsName = '_$' + getModuleName(row.file || '') + '_' + toIdentifier(row.id)
+  var moduleExportsName = toIdentifier('_$' + getModuleName(row.file || '') + '_' + row.id)
   if (dedupedRx.test(row.source)) {
     var n = row.source.match(dedupedRx)[1]
     var dedup = rows.filter(function (other) {
@@ -85,7 +85,7 @@ function parseModule (row, index, rows) {
 
       var name = getNodeName(node.parent.right)
       if (name) {
-        moduleExportsName = '_$' + name + '_' + toIdentifier(row.id)
+        moduleExportsName = toIdentifier('_$' + name + '_' + row.id)
       }
     }
   }
@@ -142,7 +142,7 @@ function rewriteModule (row, i, rows) {
     })
     if (ast.scope) {
       ast.scope.forEach(function (binding, name) {
-        binding.rename('__' + name + '_' + toIdentifier(row.id))
+        binding.rename(toIdentifier('__' + name + '_' + row.id))
       })
     }
   }
@@ -155,7 +155,7 @@ function rewriteModule (row, i, rows) {
     } else if (other && other.exportsName) {
       node.edit.update(other.exportsName)
     } else {
-      node.edit.update('_$module_' + toIdentifier(req.id))
+      node.edit.update(toIdentifier('_$module_' + req.id))
     }
   })
 
@@ -460,7 +460,7 @@ function getModuleName (file) {
   var name = parts.base === 'index.js'
     ? path.basename(parts.dir)
     : parts.name
-  return toIdentifier(name) || 'module'
+  return name || 'module'
 }
 
 // Yoinked from babel:
