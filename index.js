@@ -211,7 +211,7 @@ function flatten (rows, opts) {
 
   var exposesModules = false
   for (var i = 0; i < rows.length; i++) {
-    if (rows[i].expose && !opts.standalone) {
+    if ((rows[i].expose && !opts.standalone) || opts._expose.has(String(rows[i].id))) {
       exposesModules = true
       bundle.append('\n_$expose.m[' + JSON.stringify(rows[i].id) + '] = ' + rows[i].exportsName + ';')
     }
@@ -263,6 +263,8 @@ module.exports = function browserPackFlat(opts) {
     cb()
   })
 
+  stream._expose = new Set
+
   return stream
 
   function onwrite (row, enc, cb) {
@@ -271,7 +273,8 @@ module.exports = function browserPackFlat(opts) {
   }
   function onend (cb) {
     try {
-      stream.push(flatten(rows, opts || {}))
+      opts._expose = stream._expose
+      stream.push(flatten(rows, opts))
       cb(null)
     } catch (err) {
       cb(err)
