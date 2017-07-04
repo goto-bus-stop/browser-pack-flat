@@ -7,7 +7,8 @@ var concat = require('concat-stream')
 var pack = require('../plugin')
 
 var tests = fs.readdirSync(__dirname).filter(function (name) {
-  return fs.statSync(path.join(__dirname, name)).isDirectory()
+  return fs.statSync(path.join(__dirname, name)).isDirectory() &&
+    fs.existsSync(path.join(__dirname, name, 'app.js'))
 })
 
 tests.forEach(function (name) {

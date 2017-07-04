@@ -10,6 +10,7 @@ var Scope = require('./lib/scope')
 
 var dedupedRx = /^arguments\[4\]\[(\d+)\]/
 var CYCLE_HELPER = 'function r(o){var t=r.r;if(t[o])return t[o].exports;if(r.hasOwnProperty(o))return t[o]={exports:{}},r[o](t[o],t[o].exports),t[o].exports;throw new Error("Cannot find module #"+o)}'
+var EXPOSE_HELPER = 'function r(e){return r.m.hasOwnProperty(e)?r.m[e]:"function"==typeof r.r?r.r(e):"function"==typeof require?require(e):void 0}'
 
 function parseModule (row, index, rows) {
   // Holds the `module.exports` variable name.
@@ -49,6 +50,12 @@ function parseModule (row, index, rows) {
           id: row.deps[required],
           node: node,
           requiredModule: other
+        })
+      } else {
+        requireCalls.push({
+          external: true,
+          id: row.deps[required] || required,
+          node: node
         })
       }
     }
@@ -150,7 +157,9 @@ function rewriteModule (row, i, rows) {
   row.imports.forEach(function (req) {
     var node = req.node
     var other = req.requiredModule
-    if (other && other.isCycle) {
+    if (req.external) {
+      node.edit.update('require(' + JSON.stringify(req.id) + ')')
+    } else if (other && other.isCycle) {
       node.edit.update('_$cycle(' + JSON.stringify(req.id) + ')')
     } else if (other && other.exportsName) {
       node.edit.update(other.exportsName)
@@ -200,7 +209,12 @@ function flatten (rows, opts) {
     })
   })
 
+  var exposesModules = false
   for (var i = 0; i < rows.length; i++) {
+    if (rows[i].expose && !opts.standalone) {
+      exposesModules = true
+      bundle.append('\n_$expose.m[' + JSON.stringify(rows[i].id) + '] = ' + rows[i].exportsName + ';')
+    }
     if (rows[i].entry && rows[i].hasExports) {
       if (opts.standalone) {
         bundle.append('\nreturn ' + rows[i].exportsName + ';\n')
@@ -213,6 +227,9 @@ function flatten (rows, opts) {
   if (opts.standalone) {
     bundle.prepend(umd.prelude(opts.standalone))
     bundle.append(umd.postlude(opts.standalone))
+  } else if (exposesModules) {
+    bundle.prepend('require=(function(_$expose){_$expose.m = {}; _$expose.r = typeof require=="function" ? require : 0;\n')
+    bundle.append('\nreturn _$expose}(' + EXPOSE_HELPER + '));')
   } else {
     bundle.prepend('(function(){\n')
     bundle.append('\n}());')
