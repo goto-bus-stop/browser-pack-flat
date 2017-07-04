@@ -10,7 +10,7 @@ var Scope = require('./lib/scope')
 
 var dedupedRx = /^arguments\[4\]\[(\d+)\]/
 var CYCLE_HELPER = 'function r(o){var t=r.r;if(t[o])return t[o].exports;if(r.hasOwnProperty(o))return t[o]={exports:{}},r[o](t[o],t[o].exports),t[o].exports;throw new Error("Cannot find module #"+o)}'
-var EXPOSE_HELPER = 'function r(e){return r.m.hasOwnProperty(e)?r.m[e]:"function"==typeof r.r?r.r(e):"function"==typeof require?require(e):void 0}'
+var EXPOSE_HELPER = 'function r(e){return r.m.hasOwnProperty(e)?r.m[e]:"function"==typeof r.r?r.r(e):"function"==typeof require&&require!==r?require(e):void 0}'
 
 function parseModule (row, index, rows) {
   // Holds the `module.exports` variable name.

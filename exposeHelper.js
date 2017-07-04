@@ -9,7 +9,7 @@ function expose (m) {
     return expose.r(m)
   }
   // A module exposed on a later chunk
-  if (typeof require === 'function') {
+  if (typeof require === 'function' && require !== expose) {
     return require(m)
   }
 }
