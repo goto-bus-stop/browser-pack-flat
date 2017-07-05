@@ -102,6 +102,7 @@ function parseModule (row, index, rows) {
   row.exportsName = moduleExportsName
   row.hasExports = (moduleExportsList.length + exportsList.length) > 0
   row.imports = requireCalls
+  row.needsExternalRequire = requireCalls.some(function (req) { return req.external })
   row.references = {
     module: moduleList,
     exports: exportsList,
@@ -158,7 +159,7 @@ function rewriteModule (row, i, rows) {
     var node = req.node
     var other = req.requiredModule
     if (req.external) {
-      node.edit.update('require(' + JSON.stringify(req.id) + ')')
+      node.edit.update('_$require(' + JSON.stringify(req.id) + ')')
     } else if (other && other.isCycle) {
       node.edit.update('_$cycle(' + JSON.stringify(req.id) + ')')
     } else if (other && other.exportsName) {
@@ -224,12 +225,17 @@ function flatten (rows, opts) {
     }
   }
 
+  var needsExternalRequire = rows.some(function (row) { return row.needsExternalRequire })
+
   if (opts.standalone) {
     bundle.prepend(umd.prelude(opts.standalone))
     bundle.append(umd.postlude(opts.standalone))
   } else if (exposesModules) {
     bundle.prepend('require=(function(_$expose){_$expose.m = {}; _$expose.r = typeof require=="function" ? require : 0;\n')
     bundle.append('\nreturn _$expose}(' + EXPOSE_HELPER + '));')
+  } else if (needsExternalRequire) {
+    bundle.prepend('(function(_$require){\n')
+    bundle.append('\n}(typeof require==="function"?require:void 0));')
   } else {
     bundle.prepend('(function(){\n')
     bundle.append('\n}());')
