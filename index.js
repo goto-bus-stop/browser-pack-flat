@@ -423,7 +423,7 @@ function getDeclaredScope (id) {
   // they will conflict.
   // Here we jump out of the FunctionDeclaration so we can start by looking at the
   // surrounding scope
-  if (isFunction(id.parent) && id.parent.id === id) {
+  if (id.parent.type === 'FunctionDeclaration' && id.parent.id === id) {
     parent = id.parent
   }
   while (parent.parent) {

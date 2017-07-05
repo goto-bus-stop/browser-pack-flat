@@ -2,6 +2,7 @@
 var _$fn_2 = {};
 function __globalFunction_2 () {
   var globalFunction = null
+  !function globalFunction () { return null }()
 }
 
 var _$other_3 = {};
