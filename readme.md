@@ -29,6 +29,18 @@ browserify /path/to/app.js -p browser-pack-flat/plugin
 
 The plugin replaces the `browser-pack` module used by default by browserify.
 
+With the Node API:
+
+```js
+var browserify = require('browserify')
+var packFlat = require('browser-pack-flat')
+
+browserify({ entries: './src/app.js' })
+  .plugin(packFlat, { /* options */ })
+  .bundle()
+  .pipe(fs.createWriteStream('bundle.js'))
+```
+
 ## License
 
 [MIT](./LICENSE)
