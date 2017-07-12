@@ -43,15 +43,16 @@ function parseModule (row, index, rows) {
     registerScopeBindings(node)
 
     if (isRequire(node)) {
-      var required = node.arguments[0].value
-      if (row.deps[required] && moduleExists(row.deps[required])) {
+      var argument = node.arguments[0]
+      var required = argument.type === 'Literal' ? argument.value : null
+      if (required !== null && row.deps[required] && moduleExists(row.deps[required])) {
         var other = rows.byId[row.deps[required]]
         requireCalls.push({
           id: row.deps[required],
           node: node,
           requiredModule: other
         })
-      } else {
+      } else if (required !== null) {
         requireCalls.push({
           external: true,
           id: row.deps[required] || required,
