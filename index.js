@@ -9,8 +9,8 @@ var Binding = require('./lib/binding')
 var Scope = require('./lib/scope')
 
 var dedupedRx = /^arguments\[4\]\[(\d+)\]/
-var CYCLE_HELPER = 'function r(o){var t=r.r;if(t[o])return t[o].exports;if(r.hasOwnProperty(o))return t[o]={exports:{}},r[o](t[o],t[o].exports),t[o].exports;throw new Error("Cannot find module #"+o)}'
-var EXPOSE_HELPER = 'function r(e){return r.m.hasOwnProperty(e)?r.m[e]:"function"==typeof r.r?r.r(e):"function"==typeof require&&require!==r?require(e):void 0}'
+var CYCLE_HELPER = 'function r(o,t,n){if((t=r.r).hasOwnProperty(o))return t[o].exports;if(r.hasOwnProperty(o))return n={},t[o]={exports:n},r[o](t[o],n),t[o].exports;throw Error("Cannot find module #"+o)}'
+var EXPOSE_HELPER = 'function r(e,n){return r.m.hasOwnProperty(e)?r.m[e]:"function"!=typeof require||n?"function"==typeof r.r?r.r(e,1):void 0:require(e,1)}'
 
 function parseModule (row, index, rows) {
   // Holds the `module.exports` variable name.
@@ -232,8 +232,8 @@ function flatten (rows, opts) {
     bundle.prepend(umd.prelude(opts.standalone))
     bundle.append(umd.postlude(opts.standalone))
   } else if (exposesModules) {
-    bundle.prepend('require=(function(_$expose){_$expose.m = {}; _$expose.r = typeof require=="function" ? require : 0;\n')
-    bundle.append('\nreturn _$expose}(' + EXPOSE_HELPER + '));')
+    bundle.prepend('require=(function(_$expose,_$require){ _$expose.m = {}; _$expose.r = _$require;\n')
+    bundle.append('\nreturn _$expose}(' + EXPOSE_HELPER + ', typeof require==="function"?require:void 0));')
   } else if (needsExternalRequire) {
     bundle.prepend('(function(_$require){\n')
     bundle.append('\n}(typeof require==="function"?require:void 0));')
