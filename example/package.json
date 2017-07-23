@@ -1,0 +1,16 @@
+{
+  "name": "browser-pack-flat-example",
+  "private": true,
+  "dependencies": {
+    "yo-yo": "^1.4.1"
+  },
+  "devDependencies": {
+    "browserify": "^14.4.0",
+    "create-html": "^3.1.0"
+  },
+  "scripts": {
+    "build:standard": "browserify src/app.js > out/standard.js && create-html -s standard.js -t browser-pack > out/standard.html",
+    "build:flat": "browserify -p ../plugin src/app.js > out/flat.js && create-html -s flat.js -t browser-pack-flat > out/flat.html",
+    "build": "npm run build:standard && npm run build:flat"
+  }
+}
