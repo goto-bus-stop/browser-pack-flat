@@ -164,7 +164,7 @@ function rewriteModule (row, i, rows) {
     } else if (other && other.isCycle) {
       node.edit.update('_$cycle(' + JSON.stringify(req.id) + ')')
     } else if (other && other.exportsName) {
-      node.edit.update(other.exportsName)
+      renameImport(node, other.exportsName)
     } else {
       node.edit.update(toIdentifier('_$module_' + req.id))
     }
@@ -394,6 +394,30 @@ function renameIdentifier (node, name) {
     node.edit.update(node.name + ': ' + name)
   } else {
     node.edit.update(name)
+  }
+}
+
+function renameImport (node, name) {
+  if (node.parent.type === 'VariableDeclarator' && node.parent.id.type === 'Identifier') {
+    var scope = getScope(node.parent, node.parent.kind !== 'var')
+    var binding = scope.scope && scope.scope.getBinding(node.parent.id.name)
+    if (binding) {
+      binding.rename(name)
+      removeVariableDeclarator(node.parent)
+      return
+    }
+  }
+  node.edit.update(name)
+}
+
+// Remove a variable declarator -- remove the declaration entirely if it is the only one,
+// otherwise replace with a dummy declarator
+function removeVariableDeclarator (decl) {
+  if (decl.parent.type === 'VariableDeclaration' && decl.parent.declarations.length === 1) {
+    decl.parent.edit.prepend('/* removed: ')
+    decl.parent.edit.append(' */')
+  } else {
+    decl.edit.update('__dummy')
   }
 }
 

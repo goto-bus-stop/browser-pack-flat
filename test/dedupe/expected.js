@@ -8,7 +8,7 @@ var _$xyz_5 = 'b/xyz.js'
 var _$b_4 = _$xyz_5
 
 var _$app_3 = {};
-var __a_3 = _$a_1
-var __b_3 = _$b_4
+/* removed: var _$a_1 = require('./a') */
+/* removed: var _$b_4 = require('./b') */
 
 }());
