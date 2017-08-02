@@ -45,7 +45,7 @@ function parseModule (row, index, rows) {
     if (isRequire(node)) {
       var argument = node.arguments[0]
       var required = argument.type === 'Literal' ? argument.value : null
-      if (required !== null && row.deps[required] && moduleExists(row.deps[required])) {
+      if (required !== null && moduleExists(row.deps[required])) {
         var other = rows.byId[row.deps[required]]
         requireCalls.push({
           id: row.deps[required],
@@ -59,6 +59,10 @@ function parseModule (row, index, rows) {
           node: node
         })
       }
+
+      function moduleExists (id) {
+        return id != null && !!rows.byId[id]
+      }
     }
   })
   magicString.walk(function (node) {
@@ -69,11 +73,6 @@ function parseModule (row, index, rows) {
       registerReference(node)
     }
   })
-  function moduleExists (id) {
-    return rows.some(function (row) {
-      return String(row.id) === String(id)
-    })
-  }
 
   var moduleExportsList = globalScope.scope.getReferences('module')
     .map(function (node) { return node.parent })
