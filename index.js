@@ -436,12 +436,32 @@ function getDeclaredScope (id) {
   return parent
 }
 
+function unrollDestructuring (node, bindings) {
+  bindings = bindings || []
+  if (node.type === 'ArrayPattern') {
+    node.elements.forEach(function (el) {
+      unrollDestructuring(el, bindings)
+    })
+  }
+  if (node.type === 'ObjectPattern') {
+    node.properties.forEach(function (prop) {
+      unrollDestructuring(prop.value, bindings)
+    })
+  }
+  if (node.type === 'Identifier') {
+    bindings.push(node)
+  }
+  return bindings
+}
+
 function registerScopeBindings (node) {
   if (node.type === 'VariableDeclaration') {
     var scope = getScope(node, node.kind !== 'var')
     if (!scope.scope) scope.scope = new Scope()
     node.declarations.forEach(function (decl) {
-      scope.scope.define(new Binding(decl.id.name, decl.id))
+      unrollDestructuring(decl.id).forEach(function (id) {
+        scope.scope.define(new Binding(id.name, id))
+      })
     })
   }
   if (node.type === 'FunctionDeclaration') {
@@ -454,7 +474,9 @@ function registerScopeBindings (node) {
   if (isFunction(node)) {
     if (!node.scope) node.scope = new Scope()
     node.params.forEach(function (param) {
-      node.scope.define(new Binding(param.name, param))
+      unrollDestructuring(param).forEach(function (id) {
+        node.scope.define(new Binding(id.name, id))
+      })
     })
   }
   if (node.type === 'FunctionExpression') {
