@@ -1,2 +1,4 @@
-exports.hello = 'hello'
-exports.world = 'everyone'
+var hello = 'hello'
+var world = 'everyone'
+
+module.exports = { hello, world }

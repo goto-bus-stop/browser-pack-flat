@@ -97,6 +97,13 @@ function parseModule (row, index, rows) {
     }
   }
 
+  if (ast.scope) {
+    ast.scope.forEach(function (binding, name) {
+      binding.shouldRename = rows.usedGlobalVariables.has(name)
+      rows.usedGlobalVariables.add(name)
+    })
+  }
+
   row.ast = ast
   row.isSimpleExport = isSimpleExport
   row.exportsName = moduleExportsName
@@ -150,7 +157,9 @@ function rewriteModule (row, i, rows) {
     })
     if (ast.scope) {
       ast.scope.forEach(function (binding, name) {
-        binding.rename(toIdentifier('__' + name + '_' + row.id))
+        if (binding.shouldRename) {
+          binding.rename(toIdentifier('__' + name + '_' + row.id))
+        }
       })
     }
   }
@@ -197,6 +206,7 @@ function flatten (rows, opts) {
     bundle.prepend('var _$cycle = ' + CYCLE_HELPER + '; _$cycle.r = {};\n')
   }
 
+  rows.usedGlobalVariables = new Set()
   rows.forEach(parseModule)
   rows.forEach(rewriteModule)
   moveCircularDependenciesToStart(rows)

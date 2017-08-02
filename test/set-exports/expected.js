@@ -6,10 +6,10 @@ var _$exportsOnly_3 = {};
 _$exportsOnly_3 = 3
 
 var _$freeModule_4 = { exports: {} };
-var __something_4 = function () {
+var something = function () {
   return _$freeModule_4
 }
-__something_4().exports = 5
+something().exports = 5
 
 _$freeModule_4 = _$freeModule_4.exports
 var _$moduleExports_5 = 1

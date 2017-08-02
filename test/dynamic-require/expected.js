@@ -1,9 +1,9 @@
 (function(){
 var _$app_1 = {};
-var __value_1 = getSomeValueSomehow()
+var value = getSomeValueSomehow()
 
 require('hello/' + 'world')
 
-require(__value_1)
+require(value)
 
 }());

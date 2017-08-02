@@ -1,7 +1,8 @@
 (function(){
-var _$greeting_2 = {};
-_$greeting_2.hello = 'hello'
-_$greeting_2.world = 'everyone'
+var hello = 'hello'
+var world = 'everyone'
+
+var _$greeting_2 = { hello, world }
 
 var _$app_1 = {};
 var {
