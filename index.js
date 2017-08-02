@@ -490,6 +490,7 @@ function registerScopeBindings (node) {
     })
   }
   if (node.type === 'FunctionExpression' || node.type === 'ClassExpression') {
+    if (!node.scope) node.scope = new Scope()
     if (node.id && node.id.type === 'Identifier') {
       node.scope.define(new Binding(node.id.name, node.id))
     }
