@@ -413,8 +413,11 @@ function renameImport (node, name) {
 // otherwise replace with a dummy declarator
 function removeVariableDeclarator (decl) {
   if (decl.parent.type === 'VariableDeclaration' && decl.parent.declarations.length === 1) {
-    decl.parent.edit.prepend('/* removed: ')
-    decl.parent.edit.append(' */')
+    var removed = decl.parent.getSource()
+    // escape comment blocks inside the removed chunk, eg:
+    // `var a = require('a' /* troll comment */)`
+    removed = removed.replace(/\*\//g, '*\\/')
+    decl.parent.edit.update('/* removed: ' + removed + ' */')
   } else {
     decl.edit.update('__dummy')
   }
