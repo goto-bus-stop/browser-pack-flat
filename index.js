@@ -467,6 +467,13 @@ function registerScopeBindings (node) {
       })
     })
   }
+  if (node.type === 'ClassDeclaration') {
+    var scope = getScope(node)
+    if (!scope.scope) scope.scope = new Scope()
+    if (node.id && node.id.type === 'Identifier') {
+      scope.scope.define(new Binding(node.id.name, node.id))
+    }
+  }
   if (node.type === 'FunctionDeclaration') {
     var scope = getScope(node, false)
     if (!scope.scope) scope.scope = new Scope()
@@ -482,7 +489,7 @@ function registerScopeBindings (node) {
       })
     })
   }
-  if (node.type === 'FunctionExpression') {
+  if (node.type === 'FunctionExpression' || node.type === 'ClassExpression') {
     if (node.id && node.id.type === 'Identifier') {
       node.scope.define(new Binding(node.id.name, node.id))
     }
