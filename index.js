@@ -438,6 +438,9 @@ function getDeclaredScope (id) {
 
 function unrollDestructuring (node, bindings) {
   bindings = bindings || []
+  if (node.type === 'RestElement') {
+    node = node.argument
+  }
   if (node.type === 'ArrayPattern') {
     node.elements.forEach(function (el) {
       unrollDestructuring(el, bindings)
