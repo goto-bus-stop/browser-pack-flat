@@ -328,6 +328,7 @@ function sortModules (rows) {
  */
 function detectCycles (rows) {
   var cyclicalModules = new Set
+  var checked = new Set
   rows.forEach(function (module) {
     var visited = []
 
@@ -336,11 +337,13 @@ function detectCycles (rows) {
     function check (row) {
       var i = visited.indexOf(row)
       if (i !== -1) {
+        checked.add(row)
         for (; i < visited.length; i++) {
           cyclicalModules.add(visited[i])
         }
         return
       }
+      if (checked.has(row)) return
       visited.push(row)
       Object.keys(row.deps).forEach(function (k) {
         var dep = row.deps[k]
