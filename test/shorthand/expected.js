@@ -5,7 +5,7 @@ var _$globalVar_2 = globalVar
 
 var _$app_1 = {};
 var __globalVar_1 = 0
-/* removed: var _$globalVar_2 = require('./importedModule') */
+/* removed: var _$globalVar_2 = require('./importedModule') */;
 
 function setExports (argument) {
   var localVar = 1

@@ -427,7 +427,7 @@ function removeVariableDeclarator (decl) {
     // escape comment blocks inside the removed chunk, eg:
     // `var a = require('a' /* troll comment */)`
     removed = removed.replace(/\*\//g, '*\\/')
-    decl.parent.edit.update('/* removed: ' + removed + ' */')
+    decl.parent.edit.update('/* removed: ' + removed + ' */;')
   } else {
     decl.edit.update('__dummy')
   }

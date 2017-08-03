@@ -1,4 +1,4 @@
 var hello = require('./hello')
 var world = require('./world' /* comment */)
 
-console.log(hello, world)
+require('./asi'), console.log(hello, world)
