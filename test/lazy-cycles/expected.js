@@ -1,21 +1,21 @@
 (function(){
-var _$cycle = function r(o,t,n){if((t=r.r).hasOwnProperty(o))return t[o].exports;if(r.hasOwnProperty(o))return n={},t[o]={exports:n},r[o](t[o],n),t[o].exports;throw Error("Cannot find module #"+o)}; _$cycle.r = {};
-_$cycle[1] = (function (module, exports) {
-var b = _$cycle(3)
+var _$cycle = function r(r){var t;return function(){return t||r(t={exports:{}},t.exports),t.exports}};
+var _$a_1 = _$cycle(function (module, exports) {
+var b = _$b_3()
 module.exports = function () {
   return b()
 }
 
 });
-_$cycle[3] = (function (module, exports) {
+var _$b_3 = _$cycle(function (module, exports) {
 module.exports = function () {
-  return _$cycle(1).toString()
+  return _$a_1().toString()
 }
 
 });
 var _$app_2 = {};
 console.log(
-  _$cycle(1)()
+  _$a_1()()
 )
 
 }());
