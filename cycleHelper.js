@@ -1,19 +1,15 @@
 /**
- * Helper used in the output bundle in case of dependency cycles.
- * Properties defined on the `factories` function are module factories, taking a
- * `module` and an `exports` argument.
- * The `.r` property of this function will contain the module cache.
+ * Helper used in the output bundle to resolve dependency cycles.
+ * This helper wraps a module factory and lazily executes it.
+ * Imports of a circular module will call the factory returned by this function.
  */
-function factories (id, resolved, exports) {
-  resolved = factories.r
-  if (resolved.hasOwnProperty(id)) {
-    return resolved[id].exports
+function cycleHelper (factory) {
+  var module
+  return function () {
+    if (!module) {
+      module = { exports: {} }
+      factory(module, module.exports)
+    }
+    return module.exports
   }
-  if (factories.hasOwnProperty(id)) {
-    exports = {}
-    resolved[id] = { exports: exports }
-    factories[id](resolved[id], exports)
-    return resolved[id].exports
-  }
-  throw Error('Cannot find module #' + id)
 }

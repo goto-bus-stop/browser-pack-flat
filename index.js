@@ -9,7 +9,7 @@ var Binding = require('./lib/binding')
 var Scope = require('./lib/scope')
 
 var dedupedRx = /^arguments\[4\]\[(\d+)\]/
-var CYCLE_HELPER = 'function r(o,t,n){if((t=r.r).hasOwnProperty(o))return t[o].exports;if(r.hasOwnProperty(o))return n={},t[o]={exports:n},r[o](t[o],n),t[o].exports;throw Error("Cannot find module #"+o)}'
+var CYCLE_HELPER = 'function r(r){var t;return function(){return t||r(t={exports:{}},t.exports),t.exports}}'
 var EXPOSE_HELPER = 'function r(e,n){return r.m.hasOwnProperty(e)?r.m[e]:"function"!=typeof require||n?"function"==typeof r.r?r.r(e,1):void 0:require(e,1)}'
 
 function parseModule (row, index, rows) {
@@ -170,7 +170,7 @@ function rewriteModule (row, i, rows) {
     if (req.external) {
       node.edit.update('_$require(' + JSON.stringify(req.id) + ')')
     } else if (other && other.isCycle) {
-      node.edit.update('_$cycle(' + JSON.stringify(req.id) + ')')
+      node.edit.update(other.exportsName + '()')
     } else if (other && other.exportsName) {
       renameImport(node, other.exportsName)
     } else {
@@ -179,7 +179,7 @@ function rewriteModule (row, i, rows) {
   })
 
   if (row.isCycle) {
-    magicString.prepend('_$cycle[' + JSON.stringify(row.id) + '] = (function (module, exports) {\n')
+    magicString.prepend('var ' + row.exportsName + ' = _$cycle(function (module, exports) {\n')
     magicString.append('\n});')
   } else if (moduleBaseName) {
     magicString
@@ -203,7 +203,7 @@ function flatten (rows, opts) {
 
   // Add the circular dependency runtime if necessary.
   if (containsCycles) {
-    bundle.prepend('var _$cycle = ' + CYCLE_HELPER + '; _$cycle.r = {};\n')
+    bundle.prepend('var _$cycle = ' + CYCLE_HELPER + ';\n')
   }
 
   rows.usedGlobalVariables = new Set()
