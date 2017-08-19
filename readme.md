@@ -41,6 +41,10 @@ browserify({ entries: './src/app.js' })
   .pipe(fs.createWriteStream('bundle.js'))
 ```
 
+## Related
+
+ * [common-shakeify](https://github.com/goto-bus-stop/common-shakeify) - Tree-shaking plugin for browserify based on [@indutny](https://github.com/indutny)'s [common-shake](https://github.com/indutny/common-shake) library
+
 ## License
 
 [MIT](./LICENSE)
