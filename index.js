@@ -15,6 +15,10 @@ var EXPOSE_HELPER = 'function r(e,n){return r.m.hasOwnProperty(e)?r.m[e]:"functi
 function parseModule (row, index, rows) {
   // Holds the `module.exports` variable name.
   var moduleExportsName = toIdentifier('_$' + getModuleName(row.file || '') + '_' + row.id)
+
+  // browserify is clever about deduping modules with the same source code,
+  // but it needs the browser-pack runtime in order to do so.
+  // we don't have that runtime so this … re-dupes those modules.
   if (dedupedRx.test(row.source)) {
     var n = row.source.match(dedupedRx)[1]
     var dedup = rows.filter(function (other) {
@@ -38,10 +42,14 @@ function parseModule (row, index, rows) {
   }
 
   var source = removeSourceMappingComment(row.source)
+  // we'll do two walks along the AST in order to detect variables and their references.
+  // we initialise the scopes and declarations in the first one here, and then collect
+  // references in the second.
   var magicString = transformAst(source, function (node) {
     if (node.type === 'Program') ast = node
     registerScopeBindings(node)
 
+    // also collect requires while we're here
     if (isRequire(node)) {
       var argument = node.arguments[0]
       var required = argument.type === 'Literal' ? argument.value : null
@@ -66,6 +74,7 @@ function parseModule (row, index, rows) {
     }
   })
   magicString.walk(function (node) {
+    // transform-ast has set this to `undefined`
     ast.parent = globalScope
     if (isFreeIdentifier(node)) {
       registerReference(node)
@@ -81,7 +90,7 @@ function parseModule (row, index, rows) {
   var moduleList = globalScope.scope.getReferences('module')
     .filter(function (node) { return !isModuleExports(node.parent) })
 
-  // Detect simple exports that are just `module.exports = `, we can compile them to a single
+  // Detect simple exports that are just `module.exports = xyz`, we can compile them to a single
   // variable assignment.
   var isSimpleExport = false
   if (moduleExportsList.length === 1 && exportsList.length === 0 && moduleList.length === 0) {
@@ -97,6 +106,7 @@ function parseModule (row, index, rows) {
     }
   }
 
+  // Mark global variables that collide with variable names from earlier modules so we can rewrite them.
   if (ast.scope) {
     ast.scope.forEach(function (binding, name) {
       binding.shouldRename = rows.usedGlobalVariables.has(name)
@@ -143,12 +153,14 @@ function rewriteModule (row, i, rows) {
   if (!row.isCycle) { // cycles have a function wrapper and don't need to be rewritten
     moduleExportsList.concat(exportsList).forEach(function (node) {
       if (row.isSimpleExport) {
+        // var $moduleExportsName = xyz
         node.edit.update('var ' + moduleExportsName)
       } else {
         renameIdentifier(node, moduleExportsName)
       }
     })
     moduleList.forEach(function (node) {
+      // rewrite `typeof module` to `"object"`
       if (node.parent.type === 'UnaryExpression' && node.parent.operator === 'typeof') {
         node.parent.edit.update('"object"')
       } else {
@@ -156,6 +168,7 @@ function rewriteModule (row, i, rows) {
       }
     })
     if (ast.scope) {
+      // rename colliding global variable names
       ast.scope.forEach(function (binding, name) {
         if (binding.shouldRename) {
           binding.rename(toIdentifier('__' + name + '_' + row.id))
@@ -174,6 +187,7 @@ function rewriteModule (row, i, rows) {
     } else if (other && other.exportsName) {
       renameImport(node, other.exportsName)
     } else {
+      // TODO this is an unknown module, so probably something went wrong and we should throw an error?
       node.edit.update(toIdentifier('_$module_' + req.id))
     }
   })
@@ -327,8 +341,8 @@ function sortModules (rows) {
  * function, which will execute the requested module and return its exports.
  */
 function detectCycles (rows) {
-  var cyclicalModules = new Set
-  var checked = new Set
+  var cyclicalModules = new Set()
+  var checked = new Set()
   rows.forEach(function (module) {
     var visited = []
 
@@ -475,6 +489,16 @@ function getDeclaredScope (id) {
   return parent
 }
 
+/**
+ * Get a list of all bindings that are initialised by this (possibly destructuring)
+ * node.
+ *
+ * eg with input:
+ *
+ * var { a: [b, ...c], d } = xyz
+ *
+ * this returns the nodes for 'b', 'c', and 'd'
+ */
 function unrollDestructuring (node, bindings) {
   bindings = bindings || []
   if (node.type === 'RestElement') {
