@@ -5,6 +5,7 @@ var transformAst = require('transform-ast')
 var through = require('through2')
 var umd = require('umd')
 var json = require('JSONStream')
+var wrapComment = require('wrap-comment')
 var Binding = require('./lib/binding')
 var Scope = require('./lib/scope')
 
@@ -441,10 +442,7 @@ function renameImport (node, name) {
 function removeVariableDeclarator (decl) {
   if (decl.parent.type === 'VariableDeclaration' && decl.parent.declarations.length === 1) {
     var removed = decl.parent.getSource()
-    // escape comment blocks inside the removed chunk, eg:
-    // `var a = require('a' /* troll comment */)`
-    removed = removed.replace(/\*\//g, '*\\/')
-    decl.parent.edit.update('/* removed: ' + removed + ' */;')
+    decl.parent.edit.update(wrapComment('removed: ' + removed) + ';')
   } else {
     decl.edit.update('__dummy')
   }
