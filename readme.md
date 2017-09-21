@@ -33,7 +33,7 @@ With the Node API:
 
 ```js
 var browserify = require('browserify')
-var packFlat = require('browser-pack-flat')
+var packFlat = require('browser-pack-flat/plugin')
 
 browserify({ entries: './src/app.js' })
   .plugin(packFlat, { /* options */ })
