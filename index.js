@@ -164,6 +164,12 @@ function rewriteModule (row, i, rows) {
       // rewrite `typeof module` to `"object"`
       if (node.parent.type === 'UnaryExpression' && node.parent.operator === 'typeof') {
         node.parent.edit.update('"object"')
+      } else if (isModuleParent(node.parent)) {
+        if (row.entry) {
+          node.parent.edit.update('null')
+        } else {
+          node.parent.edit.update('({})')
+        }
       } else {
         renameIdentifier(node, moduleBaseName)
       }
@@ -398,6 +404,12 @@ function isModuleExports (node) {
     node.object.type === 'Identifier' && node.object.name === 'module' &&
     (node.property.type === 'Identifier' && node.property.name === 'exports' ||
       node.property.type === 'Literal' && node.property.value === 'exports')
+}
+function isModuleParent (node) {
+  return node.type === 'MemberExpression' &&
+    node.object.type === 'Identifier' && node.object.name === 'module' &&
+    (node.property.type === 'Identifier' && node.property.name === 'parent' ||
+      node.property.type === 'Literal' && node.property.value === 'parent')
 }
 function isRequire (node) {
   return node.type === 'CallExpression' &&
