@@ -1,1 +1,4 @@
-{ "debug": true }
+{
+  "debug": true,
+  "preludePath": "node_modules/browserify/_prelude.js"
+}

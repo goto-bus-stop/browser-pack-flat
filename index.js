@@ -1,7 +1,9 @@
 var pathParse = require('path-parse')
 var path = require('path')
-var Bundle = require('magic-string').Bundle
 var transformAst = require('transform-ast')
+var countLines = require('count-lines')
+var convertSourceMap = require('convert-source-map')
+var combineSourceMap = require('combine-source-map')
 var through = require('through2')
 var umd = require('umd')
 var json = require('JSONStream')
@@ -42,11 +44,12 @@ function parseModule (row, index, rows) {
       .define(new Binding('exports'))
   }
 
-  var source = removeSourceMappingComment(row.source)
+  var source = row.source
+
   // we'll do two walks along the AST in order to detect variables and their references.
   // we initialise the scopes and declarations in the first one here, and then collect
   // references in the second.
-  var magicString = transformAst(source, function (node) {
+  var magicString = transformAst(source, { inputFilename: row.sourceFile }, function (node) {
     if (node.type === 'Program') ast = node
     registerScopeBindings(node)
 
@@ -210,6 +213,9 @@ function rewriteModule (row, i, rows) {
   } else if (!row.isSimpleExport) {
     magicString.prepend('var ' + moduleExportsName + ' = {};\n')
   }
+
+  row.sourceMap = magicString.map
+  row.source = magicString.toString()
 }
 
 function flatten (rows, opts) {
@@ -219,39 +225,27 @@ function flatten (rows, opts) {
 
   var containsCycles = detectCycles(rows)
 
-  var bundle = new Bundle()
-  var includeMap = false
+  var combiner = opts.debug ? combineSourceMap.create() : null
 
-  // Add the circular dependency runtime if necessary.
-  if (containsCycles) {
-    bundle.prepend('var _$cycle = ' + CYCLE_HELPER + ';\n')
-  }
+  var intro = ''
+  var outro = ''
 
   rows.usedGlobalVariables = new Set()
   rows.forEach(parseModule)
   rows.forEach(rewriteModule)
   moveCircularDependenciesToStart(rows)
-  rows.forEach(function (row) {
-    if (row.sourceFile && !row.nomap) {
-      includeMap = true
-    }
-    bundle.addSource({
-      filename: row.sourceFile,
-      content: row.magicString
-    })
-  })
 
   var exposesModules = false
   for (var i = 0; i < rows.length; i++) {
     if (rows[i].expose && !opts.standalone) {
       exposesModules = true
-      bundle.append('\n_$expose.m[' + JSON.stringify(rows[i].id) + '] = ' + rows[i].exportsName + ';')
+      outro += '\n_$expose.m[' + JSON.stringify(rows[i].id) + '] = ' + rows[i].exportsName + ';'
     }
     if (rows[i].entry && rows[i].hasExports) {
       if (opts.standalone) {
-        bundle.append('\nreturn ' + rows[i].exportsName + ';\n')
+        outro += '\nreturn ' + rows[i].exportsName + ';\n'
       } else {
-        bundle.append('\nmodule.exports = ' + rows[i].exportsName + ';\n')
+        outro += '\nmodule.exports = ' + rows[i].exportsName + ';\n'
       }
     }
   }
@@ -259,26 +253,74 @@ function flatten (rows, opts) {
   var needsExternalRequire = rows.some(function (row) { return row.needsExternalRequire })
 
   if (opts.standalone) {
-    bundle.prepend(umd.prelude(opts.standalone))
-    bundle.append(umd.postlude(opts.standalone))
+    intro += umd.prelude(opts.standalone)
+    outro += umd.postlude(opts.standalone)
   } else if (exposesModules) {
-    bundle.prepend('require=(function(_$expose,_$require){ _$expose.m = {}; _$expose.r = _$require;\n')
-    bundle.append('\nreturn _$expose}(' + EXPOSE_HELPER + ', typeof require==="function"?require:void 0));')
+    intro += 'require=(function(_$expose,_$require){ _$expose.m = {}; _$expose.r = _$require;\n'
+    outro += '\nreturn _$expose}(' + EXPOSE_HELPER + ', typeof require==="function"?require:void 0));'
   } else if (needsExternalRequire) {
-    bundle.prepend('(function(_$require){\n')
-    bundle.append('\n}(typeof require==="function"?require:void 0));')
+    intro += '(function(_$require){\n'
+    outro += '\n}(typeof require==="function"?require:void 0));'
   } else {
-    bundle.prepend('(function(){\n')
-    bundle.append('\n}());')
+    intro += '(function(){\n'
+    outro += '\n}());'
   }
 
-  var result = bundle.toString()
-  if (includeMap) {
-    var map = bundle.generateMap({
-      includeContent: true
-    })
-    result += '\n//# sourceMappingURL=' + map.toUrl()
+  // Add the circular dependency runtime if necessary.
+  if (containsCycles) {
+    intro += 'var _$cycle = ' + CYCLE_HELPER + ';\n'
   }
+
+  var result = ''
+  var line = 0
+
+  var preludePath = path.relative(
+    opts.basedir || process.cwd(),
+    path.join(__dirname, '_prelude')
+  )
+  var postludePath = path.relative(
+    opts.basedir || process.cwd(),
+    path.join(__dirname, '_postlude')
+  )
+
+  result += intro
+  if (opts.debug) {
+    combiner.addFile({
+      sourceFile: preludePath,
+      source: intro
+    }, { line: line })
+  }
+
+  line += countLines(intro) - 1
+
+  rows.forEach(function (row, i) {
+    if (i > 0) {
+      result += '\n'
+      line += 1
+    }
+    result += row.source
+    if (opts.debug && row.sourceFile && !row.nomap) {
+      combiner.addFile({
+        sourceFile: row.sourceFile,
+        source: row.source + '\n' + convertSourceMap.fromObject(row.sourceMap).toComment()
+      }, { line: line })
+    }
+
+    line += countLines(row.source) - 1
+  })
+
+  result += outro
+  if (opts.debug) {
+    combiner.addFile({
+      sourceFile: postludePath,
+      source: outro
+    }, { line: line })
+  }
+
+  if (opts.debug) {
+    result += '\n' + combiner.comment()
+  }
+
   return result
 }
 
@@ -579,10 +621,6 @@ function registerReference (node) {
 
 function isFunction (node) {
   return node.type === 'FunctionDeclaration' || node.type === 'FunctionExpression' || node.type === 'ArrowFunctionExpression'
-}
-
-function removeSourceMappingComment (str) {
-  return str.replace(/^\s*\/(?:\/|\*)[@#]\s+sourceMappingURL=data:(?:application|text)\/json;(?:charset[:=]\S+?;)?base64,(?:.*)$/mg, '')
 }
 
 function getModuleName (file) {
