@@ -321,7 +321,7 @@ function flatten (rows, opts) {
     result += '\n' + combiner.comment()
   }
 
-  return result
+  return Buffer.from(result)
 }
 
 module.exports = function browserPackFlat(opts) {
