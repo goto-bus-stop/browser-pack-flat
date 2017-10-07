@@ -52,7 +52,7 @@ var _athelas,
     _f4,
     _pv,
     _mw,
-    __dummy;
+    __dummy_2$0 = 0;
 
 /* removed: var _$dep_3 = require('./dep'); */;
 

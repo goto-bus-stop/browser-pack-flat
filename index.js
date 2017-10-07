@@ -195,7 +195,7 @@ function rewriteModule (row, i, rows) {
     } else if (other && other.isCycle) {
       node.edit.update(other.exportsName + '()')
     } else if (other && other.exportsName) {
-      renameImport(node, other.exportsName)
+      renameImport(row, node, other.exportsName)
     } else {
       // TODO this is an unknown module, so probably something went wrong and we should throw an error?
       node.edit.update(toIdentifier('_$module_' + req.id))
@@ -478,13 +478,13 @@ function renameIdentifier (node, name) {
   }
 }
 
-function renameImport (node, name) {
+function renameImport (row, node, name) {
   if (node.parent.type === 'VariableDeclarator' && node.parent.id.type === 'Identifier') {
     var scope = getScope(node.parent, node.parent.kind !== 'var')
     var binding = scope.scope && scope.scope.getBinding(node.parent.id.name)
     if (binding) {
       binding.rename(name)
-      removeVariableDeclarator(node.parent)
+      removeVariableDeclarator(row, node.parent)
       return
     }
   }
@@ -493,12 +493,15 @@ function renameImport (node, name) {
 
 // Remove a variable declarator -- remove the declaration entirely if it is the only one,
 // otherwise replace with a dummy declarator
-function removeVariableDeclarator (decl) {
+function removeVariableDeclarator (row, decl) {
   if (decl.parent.type === 'VariableDeclaration' && decl.parent.declarations.length === 1) {
     var removed = decl.parent.getSource()
     decl.parent.edit.update(wrapComment('removed: ' + removed) + ';')
   } else {
-    decl.edit.update('__dummy')
+    if (!row.dummies) row.dummies = 0
+    var id = '__dummy_' + row.index + '$' + row.dummies
+    row.dummies++
+    decl.edit.update(toIdentifier(id) + ' = 0')
   }
 }
 
