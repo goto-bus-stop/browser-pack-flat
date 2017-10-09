@@ -49,7 +49,10 @@ function parseModule (row, index, rows) {
   // we'll do two walks along the AST in order to detect variables and their references.
   // we initialise the scopes and declarations in the first one here, and then collect
   // references in the second.
-  var magicString = transformAst(source, { inputFilename: row.sourceFile }, function (node) {
+  var magicString = transformAst(source, {
+    ecmaVersion: 9,
+    inputFilename: row.sourceFile
+  }, function (node) {
     if (node.type === 'Program') ast = node
     registerScopeBindings(node)
 
