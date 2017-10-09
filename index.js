@@ -324,6 +324,8 @@ function flatten (rows, opts) {
     result += '\n' + combiner.comment()
   }
 
+  result += '\n'
+
   return Buffer.from(result)
 }
 
