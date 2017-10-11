@@ -19,6 +19,4 @@ function setExports (argument) {
 
 setExports(10)
 
-module.exports = _$app_1;
-
 }());

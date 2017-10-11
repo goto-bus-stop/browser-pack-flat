@@ -23,6 +23,4 @@ _$app_1.exportsOnly = _$exportsOnly_3
 _$app_1.quoted = _$quoted_6
 _$app_1.free = _$freeModule_4
 
-module.exports = _$app_1;
-
 }());

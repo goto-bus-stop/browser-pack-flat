@@ -22,11 +22,14 @@ function runBundleUnpack (packer) {
 
   return b.bundle()
     .pipe(unpackStream())
-    .pipe(packer())
+    .pipe(packer({ standalone: 'packFlat' }))
 }
 
 function runBundlePlugin (packer) {
-  var b = browserify({ entries: path.join(__dirname, '../plugin') })
+  var b = browserify({
+    entries: path.join(__dirname, '../plugin'),
+    standalone: 'packFlat'
+  })
   b.plugin(packer)
 
   return b.bundle()
