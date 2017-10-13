@@ -221,7 +221,7 @@ function rewriteModule (row, i, rows) {
   row.source = magicString.toString()
 }
 
-function flatten (rows, opts) {
+function flatten (rows, opts, stream) {
   rows = sortModules(rows)
   rows.byId = Object.create(null)
   rows.forEach(function (row) { rows.byId[row.id] = row })
@@ -244,7 +244,12 @@ function flatten (rows, opts) {
       exposesModules = true
       outro += '\n_$expose.m[' + JSON.stringify(rows[i].id) + '] = ' + rows[i].exportsName + ';'
     }
-    if (rows[i].entry && rows[i].hasExports && opts.standalone) {
+
+    var isEntryModule = rows[i].entry && rows[i].hasExports && opts.standalone
+    // Need this for:
+    // https://github.com/browserify/browserify/blob/0305b703b226878f3acb5b8f2ff9451c87cd3991/test/debug_standalone.js#L44-L64
+    var isStandaloneModule = opts.standalone && rows[i].id === stream.standaloneModule
+    if (isEntryModule || isStandaloneModule) {
       outro += '\nreturn ' + rows[i].exportsName + ';\n'
     }
   }
@@ -348,7 +353,7 @@ module.exports = function browserPackFlat(opts) {
   }
   function onend (cb) {
     try {
-      stream.push(flatten(rows, opts || {}))
+      stream.push(flatten(rows, opts || {}, stream))
       cb(null)
     } catch (err) {
       cb(err)
