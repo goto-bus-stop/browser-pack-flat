@@ -194,7 +194,7 @@ function rewriteModule (row, i, rows) {
     var node = req.node
     var other = req.requiredModule
     if (req.external) {
-      node.edit.update('_$require(' + JSON.stringify(req.id) + ')')
+      node.edit.update('require(' + JSON.stringify(req.id) + ')')
     } else if (other && other.isCycle) {
       node.edit.update(other.exportsName + '()')
     } else if (other && other.exportsName) {
@@ -244,12 +244,8 @@ function flatten (rows, opts) {
       exposesModules = true
       outro += '\n_$expose.m[' + JSON.stringify(rows[i].id) + '] = ' + rows[i].exportsName + ';'
     }
-    if (rows[i].entry && rows[i].hasExports) {
-      if (opts.standalone) {
-        outro += '\nreturn ' + rows[i].exportsName + ';\n'
-      } else {
-        outro += '\nmodule.exports = ' + rows[i].exportsName + ';\n'
-      }
+    if (rows[i].entry && rows[i].hasExports && opts.standalone) {
+      outro += '\nreturn ' + rows[i].exportsName + ';\n'
     }
   }
 
@@ -259,11 +255,8 @@ function flatten (rows, opts) {
     intro += umd.prelude(opts.standalone)
     outro += umd.postlude(opts.standalone)
   } else if (exposesModules) {
-    intro += 'require=(function(_$expose,_$require){ _$expose.m = {}; _$expose.r = _$require;\n'
+    intro += 'require=(function(_$expose,require){ _$expose.m = {}; _$expose.r = require;\n'
     outro += '\nreturn _$expose}(' + EXPOSE_HELPER + ', typeof require==="function"?require:void 0));'
-  } else if (needsExternalRequire) {
-    intro += '(function(_$require){\n'
-    outro += '\n}(typeof require==="function"?require:void 0));'
   } else {
     intro += '(function(){\n'
     outro += '\n}());'

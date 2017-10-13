@@ -13,6 +13,4 @@ if ("object" === 'object' && _$app_1.exports) {
 }
 
 _$app_1 = _$app_1.exports
-module.exports = _$app_1;
-
 }());

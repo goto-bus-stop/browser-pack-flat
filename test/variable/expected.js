@@ -11,6 +11,4 @@ _$app_1.something = function () {
   return exports
 }
 
-module.exports = _$app_1;
-
 }());
