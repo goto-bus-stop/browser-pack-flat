@@ -7,14 +7,20 @@ module.exports = function apply (b, opts) {
     basedir: b._options.basedir || process.cwd()
   })
 
-  b.pipeline.get('pack').splice(0, 1,
-    pack(assign(opts, {
-      standalone: b._options.standalone,
-      standaloneModule: b._options.standaloneModule
-    }))
-  )
+  function addHooks () {
+    var streams = b.pipeline.get('pack')
+    var index = streams.indexOf(b._bpack)
 
-  b.on('reset', function () { apply(b, opts) })
+    streams.splice(index, 1,
+      pack(assign(opts, {
+        standalone: b._options.standalone,
+        standaloneModule: b._options.standaloneModule
+      }))
+    )
+  }
+
+  addHooks()
+  b.on('reset', addHooks)
 }
 
 function assign (base, merge) {
