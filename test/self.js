@@ -22,7 +22,7 @@ function runBundleUnpack (packer) {
 
   return b.bundle()
     .pipe(unpackStream())
-    .pipe(packer({ standalone: 'packFlat' }))
+    .pipe(packer({ raw: true, standalone: 'packFlat' }))
 }
 
 function runBundlePlugin (packer) {
