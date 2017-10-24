@@ -1,6 +1,6 @@
 {
   "name": "browser-pack-flat",
-  "version": "3.0.1",
+  "version": "3.0.2",
   "description": "bundle browserify modules into a single scope, a la rollup",
   "main": "index.js",
   "bin": {
