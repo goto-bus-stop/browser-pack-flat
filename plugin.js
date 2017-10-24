@@ -1,7 +1,7 @@
 var pack = require('./index')
 
 module.exports = function apply (b, opts) {
-  opts = assign(opts || {}, {
+  opts = Object.assign({}, opts || {}, {
     raw: true,
     debug: opts.debug || b._options.debug,
     basedir: b._options.basedir || process.cwd()
@@ -12,7 +12,7 @@ module.exports = function apply (b, opts) {
     var index = streams.indexOf(b._bpack)
 
     streams.splice(index, 1,
-      pack(assign(opts, {
+      pack(Object.assign({}, opts, {
         standalone: b._options.standalone,
         standaloneModule: b._options.standaloneModule
       }))
@@ -21,15 +21,4 @@ module.exports = function apply (b, opts) {
 
   addHooks()
   b.on('reset', addHooks)
-}
-
-function assign (base, merge) {
-  var o = {}
-  for (var i in base) if (base.hasOwnProperty(i)) {
-    o[i] = base[i]
-  }
-  for (var i in merge) if (merge.hasOwnProperty(i)) {
-    o[i] = merge[i]
-  }
-  return o
 }
