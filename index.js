@@ -334,7 +334,9 @@ module.exports = function browserPackFlat(opts) {
 
   var packer = through.obj(onwrite, onend)
   if (!opts.raw) {
-    packer = json.parse([ true ]).pipe(packer)
+    var parser = json.parse([ true ])
+    parser.pipe(packer)
+    packer = parser
   }
 
   var stream = through.obj(function (chunk, enc, cb) {
