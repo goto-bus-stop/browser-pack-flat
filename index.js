@@ -566,7 +566,10 @@ function unrollDestructuring (node, bindings) {
   }
   if (node.type === 'ArrayPattern') {
     node.elements.forEach(function (el) {
-      unrollDestructuring(el, bindings)
+      // `el` might be `null` in case of `[x,,y] = whatever`
+      if (el) {
+        unrollDestructuring(el, bindings)
+      }
     })
   }
   if (node.type === 'ObjectPattern') {

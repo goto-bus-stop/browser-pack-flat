@@ -15,6 +15,7 @@ function __globalFunction_3 () {
 
 var _$app_1 = {};
 var __somevar_1 = 0
+var [x,,y] = []
 
 _$other_3
 console.log(__somevar_1)
