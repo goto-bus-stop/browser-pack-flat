@@ -328,6 +328,15 @@ function flatten (rows, opts, stream) {
 }
 
 module.exports = function browserPackFlat(opts) {
+  // When used as a transform
+  if (typeof opts === 'string' && typeof arguments[1] === 'object') {
+    throw new Error('browser-pack-flat: must be used as a plugin through `browser-pack-flat/plugin`')
+  }
+  // When used as a plugin
+  if (opts && typeof opts.plugin === 'function') {
+    throw new Error('browser-pack-flat: to use as a plugin, require `browser-pack-flat/plugin`')
+  }
+
   opts = opts || {}
 
   var rows = []

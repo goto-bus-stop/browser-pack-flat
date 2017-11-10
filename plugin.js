@@ -1,6 +1,11 @@
 var pack = require('./index')
 
 module.exports = function apply (b, opts) {
+  // When used as a transform
+  if (typeof b !== 'object') {
+    throw new Error('browser-pack-flat: must be used as a plugin, not a transform')
+  }
+
   opts = Object.assign({}, opts || {}, {
     raw: true,
     debug: opts.debug || b._options.debug,
