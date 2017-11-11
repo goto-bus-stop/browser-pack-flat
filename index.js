@@ -6,6 +6,7 @@ var convertSourceMap = require('convert-source-map')
 var combineSourceMap = require('combine-source-map')
 var through = require('through2')
 var umd = require('umd')
+var dedent = require('dedent')
 var json = require('JSONStream')
 var toposort = require('deps-topo-sort')
 var combiner = require('stream-combiner')
@@ -262,10 +263,16 @@ function flatten (rows, opts, stream) {
     intro += umd.prelude(opts.standalone)
     outro += umd.postlude(opts.standalone)
   } else if (exposesModules) {
-    intro += 'require=(function(require){'
-    intro += 'var ' + rows.exposeName + ' = ' + require('./lib/exposedRequire') + '\n'
-    intro += '' + rows.exposeName + '.m = {}; ' + rows.exposeName + '.r = require;\n'
-    outro += '\nreturn ' + rows.exposeName + '}(typeof require==="function"?require:void 0));'
+    intro += dedent`
+      require = (function (require) {
+      var ${rows.exposeName} = ${require('./lib/exposedRequire')};
+      ${rows.exposeName}.m = {};
+      ${rows.exposeName}.r = require;
+    `
+    outro += '\n' + dedent`
+      return ${rows.exposeName};
+      }(typeof require === 'function' ? require : void 0));
+    `
   } else {
     intro += '(function(){\n'
     outro += '\n}());'

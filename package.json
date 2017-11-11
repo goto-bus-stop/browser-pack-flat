@@ -17,6 +17,7 @@
     "combine-source-map": "^0.8.0",
     "convert-source-map": "^1.5.0",
     "count-lines": "^0.1.2",
+    "dedent": "^0.7.0",
     "deps-topo-sort": "^0.2.1",
     "is-require": "0.0.1",
     "magic-string": "^0.22.2",
