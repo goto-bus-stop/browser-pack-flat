@@ -15,8 +15,6 @@ var Binding = require('./lib/binding')
 var Scope = require('./lib/scope')
 
 var dedupedRx = /^arguments\[4\]\[(\d+)\]/
-var CYCLE_HELPER = 'function r(r){var t;return function(){return t||r(t={exports:{}},t.exports),t.exports}}'
-var EXPOSE_HELPER = 'function r(e,n){return r.m.hasOwnProperty(e)?r.m[e]:"function"!=typeof require||n?"function"==typeof r.r?r.r(e,1):void 0:require(e,1)}'
 
 function parseModule (row, index, rows) {
   // Holds the `module.exports` variable name.
@@ -209,7 +207,7 @@ function rewriteModule (row, i, rows) {
   })
 
   if (row.isCycle) {
-    magicString.prepend('var ' + row.exportsName + ' = _$cycle(function (module, exports) {\n')
+    magicString.prepend('var ' + row.exportsName + ' = ' + rows.createModuleFactoryName + '(function (module, exports) {\n')
     magicString.append('\n});')
   } else if (moduleBaseName) {
     magicString
@@ -236,6 +234,8 @@ function flatten (rows, opts, stream) {
   var outro = ''
 
   rows.usedGlobalVariables = new Set()
+  rows.exposeName = generateName(rows, 'exposedRequire')
+  rows.createModuleFactoryName = generateName(rows, 'createModuleFactory')
   rows.forEach(parseModule)
   rows.forEach(rewriteModule)
   moveCircularDependenciesToStart(rows)
@@ -244,7 +244,7 @@ function flatten (rows, opts, stream) {
   for (var i = 0; i < rows.length; i++) {
     if (rows[i].expose && !opts.standalone) {
       exposesModules = true
-      outro += '\n_$expose.m[' + JSON.stringify(rows[i].id) + '] = ' + rows[i].exportsName + ';'
+      outro += '\n' + rows.exposeName + '.m[' + JSON.stringify(rows[i].id) + '] = ' + rows[i].exportsName + ';'
     }
 
     var isEntryModule = rows[i].entry && rows[i].hasExports && opts.standalone
@@ -262,8 +262,10 @@ function flatten (rows, opts, stream) {
     intro += umd.prelude(opts.standalone)
     outro += umd.postlude(opts.standalone)
   } else if (exposesModules) {
-    intro += 'require=(function(_$expose,require){ _$expose.m = {}; _$expose.r = require;\n'
-    outro += '\nreturn _$expose}(' + EXPOSE_HELPER + ', typeof require==="function"?require:void 0));'
+    intro += 'require=(function(require){'
+    intro += 'var ' + rows.exposeName + ' = ' + require('./lib/exposedRequire') + '\n'
+    intro += '' + rows.exposeName + '.m = {}; ' + rows.exposeName + '.r = require;\n'
+    outro += '\nreturn ' + rows.exposeName + '}(typeof require==="function"?require:void 0));'
   } else {
     intro += '(function(){\n'
     outro += '\n}());'
@@ -271,7 +273,7 @@ function flatten (rows, opts, stream) {
 
   // Add the circular dependency runtime if necessary.
   if (containsCycles) {
-    intro += 'var _$cycle = ' + CYCLE_HELPER + ';\n'
+    intro += 'var ' + rows.createModuleFactoryName + ' = ' + require('./lib/createModuleFactory') + ';\n'
   }
 
   var result = ''
@@ -371,7 +373,7 @@ module.exports = function browserPackFlat(opts) {
  * Detect cyclical dependencies in the bundle. All modules in a dependency cycle
  * are moved to the top of the bundle and wrapped in functions so they're not
  * evaluated immediately. When other modules need a module that's in a dependency
- * cycle, instead of using the module's exportName, it'll call the `_$cycle` runtime
+ * cycle, instead of using the module's exportName, it'll call the `createModuleFactory` runtime
  * function, which will execute the requested module and return its exports.
  */
 function detectCycles (rows) {
@@ -616,6 +618,20 @@ function getModuleName (file) {
     ? path.basename(parts.dir)
     : parts.name
   return name || 'module'
+}
+
+function generateName (rows, base) {
+  var dedupe = ''
+  var i = 0
+  while (true) {
+    var inUse = rows.some(function (row) {
+      return row.source.indexOf(base + dedupe) !== -1
+    })
+    if (!inUse) {
+      return base + dedupe
+    }
+    dedupe = '_' + (i++)
+  }
 }
 
 // Yoinked from babel:

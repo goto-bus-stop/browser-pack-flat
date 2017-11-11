@@ -1,11 +1,20 @@
 (function(){
-var _$cycle = function r(r){var t;return function(){return t||r(t={exports:{}},t.exports),t.exports}};
-var _$a_1 = _$cycle(function (module, exports) {
+var createModuleFactory = function createModuleFactory(factory) {
+  var module
+  return function () {
+    if (!module) {
+      module = { exports: {} }
+      factory(module, module.exports)
+    }
+    return module.exports
+  }
+};
+var _$a_1 = createModuleFactory(function (module, exports) {
 exports.b = _$b_3
 exports.c = _$c_4()
 
 });
-var _$c_4 = _$cycle(function (module, exports) {
+var _$c_4 = createModuleFactory(function (module, exports) {
 module.exports = 10 + _$a_1().b
 
 });
