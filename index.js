@@ -10,6 +10,7 @@ var dedent = require('dedent')
 var json = require('JSONStream')
 var toposort = require('deps-topo-sort')
 var combiner = require('stream-combiner')
+var getAssignedIdentifiers = require('get-assigned-identifiers')
 var wrapComment = require('wrap-comment')
 var isRequire = require('is-require')()
 var Binding = require('./lib/binding')
@@ -534,46 +535,12 @@ function getDeclaredScope (id) {
   return parent
 }
 
-/**
- * Get a list of all bindings that are initialised by this (possibly destructuring)
- * node.
- *
- * eg with input:
- *
- * var { a: [b, ...c], d } = xyz
- *
- * this returns the nodes for 'b', 'c', and 'd'
- */
-function unrollDestructuring (node, bindings) {
-  bindings = bindings || []
-  if (node.type === 'RestElement') {
-    node = node.argument
-  }
-  if (node.type === 'ArrayPattern') {
-    node.elements.forEach(function (el) {
-      // `el` might be `null` in case of `[x,,y] = whatever`
-      if (el) {
-        unrollDestructuring(el, bindings)
-      }
-    })
-  }
-  if (node.type === 'ObjectPattern') {
-    node.properties.forEach(function (prop) {
-      unrollDestructuring(prop.value, bindings)
-    })
-  }
-  if (node.type === 'Identifier') {
-    bindings.push(node)
-  }
-  return bindings
-}
-
 function registerScopeBindings (node) {
   if (node.type === 'VariableDeclaration') {
     var scope = getScope(node, node.kind !== 'var')
     if (!scope.scope) scope.scope = new Scope()
     node.declarations.forEach(function (decl) {
-      unrollDestructuring(decl.id).forEach(function (id) {
+      getAssignedIdentifiers(decl.id).forEach(function (id) {
         scope.scope.define(new Binding(id.name, id))
       })
     })
@@ -595,7 +562,7 @@ function registerScopeBindings (node) {
   if (isFunction(node)) {
     if (!node.scope) node.scope = new Scope()
     node.params.forEach(function (param) {
-      unrollDestructuring(param).forEach(function (id) {
+      getAssignedIdentifiers(param).forEach(function (id) {
         node.scope.define(new Binding(id.name, id))
       })
     })
