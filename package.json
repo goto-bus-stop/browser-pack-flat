@@ -19,6 +19,7 @@
     "combine-source-map": "^0.8.0",
     "convert-source-map": "^1.5.0",
     "count-lines": "^0.1.2",
+    "is-require": "0.0.1",
     "magic-string": "^0.22.2",
     "path-parse": "^1.0.5",
     "through2": "^2.0.3",

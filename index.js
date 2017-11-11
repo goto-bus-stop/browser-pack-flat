@@ -8,6 +8,7 @@ var through = require('through2')
 var umd = require('umd')
 var json = require('JSONStream')
 var wrapComment = require('wrap-comment')
+var isRequire = require('is-require')()
 var Binding = require('./lib/binding')
 var Scope = require('./lib/scope')
 
@@ -466,10 +467,6 @@ function isModuleParent (node) {
     node.object.type === 'Identifier' && node.object.name === 'module' &&
     (node.property.type === 'Identifier' && node.property.name === 'parent' ||
       node.property.type === 'Literal' && node.property.value === 'parent')
-}
-function isRequire (node) {
-  return node.type === 'CallExpression' &&
-    node.callee.type === 'Identifier' && node.callee.name === 'require'
 }
 function isObjectKey (node) {
   return node.parent.type === 'Property' && node.parent.key === node
