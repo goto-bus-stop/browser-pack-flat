@@ -7,6 +7,8 @@ var combineSourceMap = require('combine-source-map')
 var through = require('through2')
 var umd = require('umd')
 var json = require('JSONStream')
+var toposort = require('deps-topo-sort')
+var combiner = require('stream-combiner')
 var wrapComment = require('wrap-comment')
 var isRequire = require('is-require')()
 var Binding = require('./lib/binding')
@@ -223,7 +225,6 @@ function rewriteModule (row, i, rows) {
 }
 
 function flatten (rows, opts, stream) {
-  rows = sortModules(rows)
   rows.byId = Object.create(null)
   rows.forEach(function (row) { rows.byId[row.id] = row })
 
@@ -343,19 +344,11 @@ module.exports = function browserPackFlat(opts) {
   var rows = []
 
   var packer = through.obj(onwrite, onend)
-  if (!opts.raw) {
-    var parser = json.parse([ true ])
-    parser.pipe(packer)
-    packer = parser
-  }
-
-  var stream = through.obj(function (chunk, enc, cb) {
-    packer.write(chunk)
-    cb()
-  }, function (cb) {
-    packer.end()
-    cb()
-  })
+  var stream = combiner([
+    !opts.raw ? json.parse([ true ]) : null,
+    toposort(),
+    packer
+  ].filter(Boolean))
 
   return stream
 
@@ -365,36 +358,13 @@ module.exports = function browserPackFlat(opts) {
   }
   function onend (cb) {
     try {
-      stream.push(flatten(rows, opts || {}, stream))
+      packer.push(flatten(rows, opts || {}, stream))
+      packer.push(null)
       cb(null)
     } catch (err) {
       cb(err)
     }
   }
-}
-
-function sortModules (rows) {
-  var modules = {}
-  var seen = {}
-  rows.forEach(function (row) {
-    modules[row.id] = row
-  })
-
-  var sorted = []
-  rows.forEach(function visit (row) {
-    if (!row || seen[row.id]) return
-    seen[row.id] = true
-    if (row.deps) {
-      Object.keys(row.deps).sort(function (a, b) {
-        // ensure the order is consistent
-        return row.deps[a] - row.deps[b]
-      }).map(function (dep) {
-        return modules[row.deps[dep]]
-      }).forEach(visit)
-    }
-    sorted.push(row)
-  })
-  return sorted
 }
 
 /**
