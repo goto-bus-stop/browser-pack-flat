@@ -20,6 +20,7 @@
     "dedent": "^0.7.0",
     "deps-topo-sort": "^0.2.1",
     "get-assigned-identifiers": "^1.0.0",
+    "identifierfy": "^1.1.1",
     "is-require": "0.0.1",
     "magic-string": "^0.22.2",
     "path-parse": "^1.0.5",

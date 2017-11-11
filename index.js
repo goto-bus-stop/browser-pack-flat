@@ -11,6 +11,7 @@ var json = require('JSONStream')
 var toposort = require('deps-topo-sort')
 var combiner = require('stream-combiner')
 var getAssignedIdentifiers = require('get-assigned-identifiers')
+var toIdentifier = require('identifierfy')
 var wrapComment = require('wrap-comment')
 var isRequire = require('is-require')()
 var Binding = require('./lib/binding')
@@ -606,16 +607,4 @@ function generateName (rows, base) {
     }
     dedupe = '_' + (i++)
   }
-}
-
-// Yoinked from babel:
-// https://github.com/babel/babel/blob/9ad660bbe103a3484b780a1f2f2e124037b3ee0a/packages/babel-types/src/converters.js#L135
-function toIdentifier(name) {
-  return String(name)
-    // replace all non-valid identifiers with dashes
-    .replace(/[^a-zA-Z0-9$_]/g, '-')
-    // remove all dashes and numbers from start of name
-    .replace(/^[-0-9]+/, "")
-    // camel case
-    .replace(/[-\s]+(.)?/g, function (match, c) { return c ? c.toUpperCase() : '' })
 }
