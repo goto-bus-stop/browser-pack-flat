@@ -10,12 +10,10 @@ var dedent = require('dedent')
 var json = require('JSONStream')
 var toposort = require('deps-topo-sort')
 var combiner = require('stream-combiner')
-var getAssignedIdentifiers = require('get-assigned-identifiers')
+var scan = require('scope-analyzer')
 var toIdentifier = require('identifierfy')
 var wrapComment = require('wrap-comment')
 var isRequire = require('is-require')()
-var Binding = require('./lib/binding')
-var Scope = require('./lib/scope')
 
 var dedupedRx = /^arguments\[4\]\[(\d+)\]/
 
@@ -42,11 +40,9 @@ function parseModule (row, index, rows) {
   // one level higher-ish than the module scope. this emulates that.
   var globalScope = {
     type: 'BrowserPackFlatWrapper',
-    parent: null,
-    scope: new Scope()
-      .define(new Binding('module'))
-      .define(new Binding('exports'))
+    parent: null
   }
+  scan.createScope(globalScope, ['module', 'exports'])
 
   var source = row.source
 
@@ -58,7 +54,7 @@ function parseModule (row, index, rows) {
     inputFilename: row.sourceFile
   }, function (node) {
     if (node.type === 'Program') ast = node
-    registerScopeBindings(node)
+    scan.visitScope(node)
 
     // also collect requires while we're here
     if (isRequire(node)) {
@@ -87,18 +83,14 @@ function parseModule (row, index, rows) {
   magicString.walk(function (node) {
     // transform-ast has set this to `undefined`
     ast.parent = globalScope
-    if (isFreeIdentifier(node)) {
-      registerReference(node)
-    } else if (isShorthandProperty(node)) {
-      registerReference(node)
-    }
+    scan.visitBinding(node)
   })
 
-  var moduleExportsList = globalScope.scope.getReferences('module')
+  var moduleExportsList = scan.scope(globalScope).getReferences('module')
     .map(function (node) { return node.parent })
     .filter(isModuleExports)
-  var exportsList = globalScope.scope.getReferences('exports')
-  var moduleList = globalScope.scope.getReferences('module')
+  var exportsList = scan.scope(globalScope).getReferences('exports')
+  var moduleList = scan.scope(globalScope).getReferences('module')
     .filter(function (node) { return !isModuleExports(node.parent) })
 
   // Detect simple exports that are just `module.exports = xyz`, we can compile them to a single
@@ -108,7 +100,7 @@ function parseModule (row, index, rows) {
     var node = moduleExportsList[0]
     if (node.parent.type === 'AssignmentExpression' && node.parent.left === node &&
         node.parent.parent.type === 'ExpressionStatement') {
-      isSimpleExport = getScope(node.object, false) === ast
+      isSimpleExport = scan.nearestScope(node.object, false) === ast
 
       var name = getNodeName(node.parent.right)
       if (name) {
@@ -118,8 +110,8 @@ function parseModule (row, index, rows) {
   }
 
   // Mark global variables that collide with variable names from earlier modules so we can rewrite them.
-  if (ast.scope) {
-    ast.scope.forEach(function (binding, name) {
+  if (scan.scope(ast)) {
+    scan.scope(ast).forEach(function (binding, name) {
       binding.shouldRename = rows.usedGlobalVariables.has(name)
       rows.usedGlobalVariables.add(name)
     })
@@ -184,11 +176,11 @@ function rewriteModule (row, i, rows) {
         renameIdentifier(node, moduleBaseName)
       }
     })
-    if (ast.scope) {
+    if (scan.scope(ast)) {
       // rename colliding global variable names
-      ast.scope.forEach(function (binding, name) {
+      scan.scope(ast).forEach(function (binding, name) {
         if (binding.shouldRename) {
-          binding.rename(toIdentifier('__' + name + '_' + row.id))
+          renameBinding(binding, toIdentifier('__' + name + '_' + row.id))
         }
       })
     }
@@ -449,17 +441,12 @@ function isModuleParent (node) {
     (node.property.type === 'Identifier' && node.property.name === 'parent' ||
       node.property.type === 'Literal' && node.property.value === 'parent')
 }
+
 function isObjectKey (node) {
   return node.parent.type === 'Property' && node.parent.key === node
 }
 function isShorthandProperty (node) {
   return node.type === 'Identifier' && isObjectKey(node) && node.parent.shorthand
-}
-function isFreeIdentifier (node) {
-  return node.type === 'Identifier' &&
-    !isObjectKey(node) &&
-    (node.parent.type !== 'MemberExpression' || node.parent.object === node ||
-      (node.parent.property === node && node.parent.computed))
 }
 
 function renameIdentifier (node, name) {
@@ -472,15 +459,20 @@ function renameIdentifier (node, name) {
 
 function renameImport (row, node, name) {
   if (node.parent.type === 'VariableDeclarator' && node.parent.id.type === 'Identifier') {
-    var scope = getScope(node.parent, node.parent.kind !== 'var')
-    var binding = scope.scope && scope.scope.getBinding(node.parent.id.name)
+    var binding = scan.getBinding(node.parent.id)
     if (binding) {
-      binding.rename(name)
+      renameBinding(binding, name)
       removeVariableDeclarator(row, node.parent)
       return
     }
   }
   node.edit.update(name)
+}
+
+function renameBinding (binding, newName) {
+  binding.each(function (node) {
+    renameIdentifier(node, newName)
+  })
 }
 
 // Remove a variable declarator -- remove the declaration entirely if it is the only one,
@@ -495,96 +487,6 @@ function removeVariableDeclarator (row, decl) {
     row.dummies++
     decl.edit.update(toIdentifier(id) + ' = 0')
   }
-}
-
-// Get the scope that a declaration will be declared in
-function getScope (node, blockScope) {
-  var parent = node
-  while (parent.parent) {
-    parent = parent.parent
-    if (isFunction(parent)) {
-      break
-    }
-    if (blockScope && parent.type === 'BlockStatement') {
-      break
-    }
-    if (parent.type === 'Program') {
-      break
-    }
-  }
-  return parent
-}
-
-// Get the scope that this identifier has been declared in
-function getDeclaredScope (id) {
-  var parent = id
-  // Jump over one parent if this is a function's name--the variables
-  // and parameters _inside_ the function are attached to the FunctionDeclaration
-  // so if a variable inside the function has the same name as the function,
-  // they will conflict.
-  // Here we jump out of the FunctionDeclaration so we can start by looking at the
-  // surrounding scope
-  if (id.parent.type === 'FunctionDeclaration' && id.parent.id === id) {
-    parent = id.parent
-  }
-  while (parent.parent) {
-    parent = parent.parent
-    if (parent.scope && parent.scope.has(id.name)) {
-      break
-    }
-  }
-  return parent
-}
-
-function registerScopeBindings (node) {
-  if (node.type === 'VariableDeclaration') {
-    var scope = getScope(node, node.kind !== 'var')
-    if (!scope.scope) scope.scope = new Scope()
-    node.declarations.forEach(function (decl) {
-      getAssignedIdentifiers(decl.id).forEach(function (id) {
-        scope.scope.define(new Binding(id.name, id))
-      })
-    })
-  }
-  if (node.type === 'ClassDeclaration') {
-    var scope = getScope(node)
-    if (!scope.scope) scope.scope = new Scope()
-    if (node.id && node.id.type === 'Identifier') {
-      scope.scope.define(new Binding(node.id.name, node.id))
-    }
-  }
-  if (node.type === 'FunctionDeclaration') {
-    var scope = getScope(node, false)
-    if (!scope.scope) scope.scope = new Scope()
-    if (node.id && node.id.type === 'Identifier') {
-      scope.scope.define(new Binding(node.id.name, node.id))
-    }
-  }
-  if (isFunction(node)) {
-    if (!node.scope) node.scope = new Scope()
-    node.params.forEach(function (param) {
-      getAssignedIdentifiers(param).forEach(function (id) {
-        node.scope.define(new Binding(id.name, id))
-      })
-    })
-  }
-  if (node.type === 'FunctionExpression' || node.type === 'ClassExpression') {
-    if (!node.scope) node.scope = new Scope()
-    if (node.id && node.id.type === 'Identifier') {
-      node.scope.define(new Binding(node.id.name, node.id))
-    }
-  }
-}
-
-function registerReference (node) {
-  var scope = getDeclaredScope(node)
-  if (scope.scope && scope.scope.has(node.name)) {
-    scope.scope.add(node.name, node)
-  }
-}
-
-function isFunction (node) {
-  return node.type === 'FunctionDeclaration' || node.type === 'FunctionExpression' || node.type === 'ArrowFunctionExpression'
 }
 
 function getModuleName (file) {
