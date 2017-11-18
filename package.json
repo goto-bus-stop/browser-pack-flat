@@ -7,7 +7,7 @@
     "browser-pack-flat": "cli.js"
   },
   "scripts": {
-    "test": "tape test/test.js test/expose.js test/self.js"
+    "test": "tape test/test.js test/expose.js test/order.js test/self.js"
   },
   "keywords": [],
   "author": "Renée Kooi <renee@kooi.me>",
@@ -18,7 +18,6 @@
     "convert-source-map": "^1.5.0",
     "count-lines": "^0.1.2",
     "dedent": "^0.7.0",
-    "deps-topo-sort": "^0.2.1",
     "identifierfy": "^1.1.1",
     "is-require": "0.0.1",
     "magic-string": "^0.22.2",
