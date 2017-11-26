@@ -4,6 +4,9 @@ Bundle browserify modules into a single scope, a la rollup.
 
 Caveats:
 
+ - Modules are executed fully, one after another, instead of inline.
+   This is a potential difference from Node.js and the default browserify behaviour.
+   Usually this does not matter, but rarely the order that some things are executed in may change.
  - This rewrites `require()` calls to simple variable assignments.
    If a module wraps `require()` somehow it probably will not work.
    In practice this is quite rare.
