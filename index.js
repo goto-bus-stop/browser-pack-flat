@@ -122,7 +122,6 @@ function parseModule (row, index, rows) {
   row.exportsName = moduleExportsName
   row.hasExports = (moduleExportsList.length + exportsList.length) > 0
   row.imports = requireCalls
-  row.needsExternalRequire = requireCalls.some(function (req) { return req.external })
   row.references = {
     module: moduleList,
     exports: exportsList,
@@ -250,8 +249,6 @@ function flatten (rows, opts, stream) {
       outro += '\nreturn ' + rows[i].exportsName + ';\n'
     }
   }
-
-  var needsExternalRequire = rows.some(function (row) { return row.needsExternalRequire })
 
   if (opts.standalone) {
     intro += umd.prelude(opts.standalone)
