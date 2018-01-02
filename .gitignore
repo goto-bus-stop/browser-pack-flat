@@ -2,3 +2,4 @@ node_modules/
 test/self.*.expected.js
 test/self.*.actual.js
 actual.js
+package-lock.json
