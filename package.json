@@ -22,7 +22,7 @@
     "is-require": "0.0.1",
     "magic-string": "^0.22.2",
     "path-parse": "^1.0.5",
-    "scope-analyzer": "^1.0.0",
+    "scope-analyzer": "^1.2.0",
     "stream-combiner": "^0.2.2",
     "through2": "^2.0.3",
     "transform-ast": "^2.2.1",

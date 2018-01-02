@@ -110,8 +110,12 @@ function parseModule (row, index, rows) {
   }
 
   // Mark global variables that collide with variable names from earlier modules so we can rewrite them.
-  if (scan.scope(ast)) {
-    scan.scope(ast).forEach(function (binding, name) {
+  var scope = scan.scope(ast)
+  if (scope) {
+    scan.scope(globalScope).getUndeclaredNames().forEach(function (name) {
+      rows.usedGlobalVariables.add(name)
+    })
+    scope.forEach(function (binding, name) {
       binding.shouldRename = rows.usedGlobalVariables.has(name)
       rows.usedGlobalVariables.add(name)
     })
