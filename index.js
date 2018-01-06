@@ -18,6 +18,16 @@ var isMemberExpression = require('estree-is-member-expression')
 
 var dedupedRx = /^arguments\[4\]\[(\d+)\]/
 
+var kIsCyclical = Symbol('is part of cyclical dep chain')
+var kAst = Symbol('ast')
+var kIsSimpleExport = Symbol('is simple export')
+var kExportsName = Symbol('exports variable name')
+var kRequireCalls = Symbol('require calls')
+var kReferences = Symbol('module/exports references')
+var kMagicString = Symbol('magic string')
+var kSourceMap = Symbol('source map')
+var kDummyVars = Symbol('dummy replacement variables')
+
 function parseModule (row, index, rows) {
   // Holds the `module.exports` variable name.
   var moduleExportsName = toIdentifier('_$' + getModuleName(row.file || '') + '_' + row.id)
@@ -122,28 +132,28 @@ function parseModule (row, index, rows) {
     })
   }
 
-  row.ast = ast
-  row.isSimpleExport = isSimpleExport
-  row.exportsName = moduleExportsName
+  row[kAst] = ast
+  row[kIsSimpleExport] = isSimpleExport
+  row[kExportsName] = moduleExportsName
   row.hasExports = (moduleExportsList.length + exportsList.length) > 0
-  row.imports = requireCalls
-  row.references = {
+  row[kRequireCalls] = requireCalls
+  row[kReferences] = {
     module: moduleList,
     exports: exportsList,
     'module.exports': moduleExportsList
   }
-  row.magicString = magicString
+  row[kMagicString] = magicString
 }
 
 function rewriteModule (row, i, rows) {
-  var moduleExportsName = row.exportsName
+  var moduleExportsName = row[kExportsName]
   var moduleBaseName
 
-  var ast = row.ast
-  var magicString = row.magicString
-  var moduleList = row.references.module
-  var moduleExportsList = row.references['module.exports']
-  var exportsList = row.references.exports
+  var ast = row[kAst]
+  var magicString = row[kMagicString]
+  var moduleList = row[kReferences].module
+  var moduleExportsList = row[kReferences]['module.exports']
+  var exportsList = row[kReferences].exports
 
   // If `module` is used as a free variable we need to turn it into an object with an `.exports`
   // property, to deal with situations like:
@@ -157,9 +167,9 @@ function rewriteModule (row, i, rows) {
     moduleExportsName += '.exports'
   }
 
-  if (!row.isCycle) { // cycles have a function wrapper and don't need to be rewritten
+  if (!row[kIsCyclical]) { // cycles have a function wrapper and don't need to be rewritten
     moduleExportsList.concat(exportsList).forEach(function (node) {
-      if (row.isSimpleExport) {
+      if (row[kIsSimpleExport]) {
         // var $moduleExportsName = xyz
         node.edit.update('var ' + moduleExportsName)
       } else {
@@ -190,34 +200,34 @@ function rewriteModule (row, i, rows) {
     }
   }
 
-  row.imports.forEach(function (req) {
+  row[kRequireCalls].forEach(function (req) {
     var node = req.node
     var other = req.requiredModule
     if (req.external) {
       node.edit.update('require(' + JSON.stringify(req.id) + ')')
-    } else if (other && other.isCycle) {
-      node.edit.update(other.exportsName + '()')
-    } else if (other && other.exportsName) {
-      renameImport(row, node, other.exportsName)
+    } else if (other && other[kIsCyclical]) {
+      node.edit.update(other[kExportsName] + '()')
+    } else if (other && other[kExportsName]) {
+      renameImport(row, node, other[kExportsName])
     } else {
       // TODO this is an unknown module, so probably something went wrong and we should throw an error?
       node.edit.update(toIdentifier('_$module_' + req.id))
     }
   })
 
-  if (row.isCycle) {
-    magicString.prepend('var ' + row.exportsName + ' = ' + rows.createModuleFactoryName + '(function (module, exports) {\n')
+  if (row[kIsCyclical]) {
+    magicString.prepend('var ' + row[kExportsName] + ' = ' + rows.createModuleFactoryName + '(function (module, exports) {\n')
     magicString.append('\n});')
   } else if (moduleBaseName) {
     magicString
       .prepend('var ' + moduleBaseName + ' = { exports: {} };\n')
       .append('\n' + moduleBaseName + ' = ' + moduleExportsName)
     moduleExportsName = moduleBaseName
-  } else if (!row.isSimpleExport) {
+  } else if (!row[kIsSimpleExport]) {
     magicString.prepend('var ' + moduleExportsName + ' = {};\n')
   }
 
-  row.sourceMap = magicString.map
+  row[kSourceMap] = magicString.map
   row.source = magicString.toString()
 }
 
@@ -243,7 +253,7 @@ function flatten (rows, opts, stream) {
   for (var i = 0; i < rows.length; i++) {
     if (rows[i].expose && !opts.standalone) {
       exposesModules = true
-      outro += '\n' + rows.exposeName + '.m[' + JSON.stringify(rows[i].id) + '] = ' + rows[i].exportsName + ';'
+      outro += '\n' + rows.exposeName + '.m[' + JSON.stringify(rows[i].id) + '] = ' + rows[i][kExportsName] + ';'
     }
 
     var isEntryModule = rows[i].entry && rows[i].hasExports && opts.standalone
@@ -251,7 +261,7 @@ function flatten (rows, opts, stream) {
     // https://github.com/browserify/browserify/blob/0305b703b226878f3acb5b8f2ff9451c87cd3991/test/debug_standalone.js#L44-L64
     var isStandaloneModule = opts.standalone && rows[i].id === stream.standaloneModule
     if (isEntryModule || isStandaloneModule) {
-      outro += '\nreturn ' + rows[i].exportsName + ';\n'
+      outro += '\nreturn ' + rows[i][kExportsName] + ';\n'
     }
   }
 
@@ -310,7 +320,7 @@ function flatten (rows, opts, stream) {
     if (opts.debug && row.sourceFile && !row.nomap) {
       combiner.addFile({
         sourceFile: row.sourceFile,
-        source: row.source + '\n' + convertSourceMap.fromObject(row.sourceMap).toComment()
+        source: row.source + '\n' + convertSourceMap.fromObject(row[kSourceMap]).toComment()
       }, { line: line })
     }
 
@@ -409,14 +419,14 @@ function detectCycles (rows) {
 
   // mark cyclical dependencies
   for (var i = 0; i < rows.length; i++) {
-    rows[i].isCycle = cyclicalModules.has(rows[i])
+    rows[i][kIsCyclical] = cyclicalModules.has(rows[i])
   }
   return cyclicalModules.size > 0
 }
 
 function moveCircularDependenciesToStart (rows) {
   for (var i = 0; i < rows.length; i++) {
-    if (rows[i].isCycle) {
+    if (rows[i][kIsCyclical]) {
       var row = rows.splice(i, 1)[0]
       rows.unshift(row)
     }
@@ -478,9 +488,9 @@ function removeVariableDeclarator (row, decl) {
     var removed = decl.parent.getSource()
     decl.parent.edit.update(wrapComment('removed: ' + removed) + ';')
   } else {
-    if (!row.dummies) row.dummies = 0
-    var id = '__dummy_' + row.index + '$' + row.dummies
-    row.dummies++
+    if (!row[kDummyVars]) row[kDummyVars] = 0
+    var id = '__dummy_' + row.index + '$' + row[kDummyVars]
+    row[kDummyVars]++
     decl.edit.update(toIdentifier(id) + ' = 0')
   }
 }
