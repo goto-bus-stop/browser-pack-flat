@@ -14,6 +14,7 @@ var scan = require('scope-analyzer')
 var toIdentifier = require('identifierfy')
 var wrapComment = require('wrap-comment')
 var isRequire = require('is-require')()
+var isMemberExpression = require('estree-is-member-expression')
 
 var dedupedRx = /^arguments\[4\]\[(\d+)\]/
 
@@ -431,16 +432,10 @@ function getNodeName (node) {
 }
 
 function isModuleExports (node) {
-  return node.type === 'MemberExpression' &&
-    node.object.type === 'Identifier' && node.object.name === 'module' &&
-    (node.property.type === 'Identifier' && node.property.name === 'exports' ||
-      node.property.type === 'Literal' && node.property.value === 'exports')
+  return isMemberExpression(node, 'module.exports')
 }
 function isModuleParent (node) {
-  return node.type === 'MemberExpression' &&
-    node.object.type === 'Identifier' && node.object.name === 'module' &&
-    (node.property.type === 'Identifier' && node.property.name === 'parent' ||
-      node.property.type === 'Literal' && node.property.value === 'parent')
+  return isMemberExpression(node, 'module.parent')
 }
 
 function isObjectKey (node) {
