@@ -162,15 +162,17 @@ With browser-pack-flat, this becomes:
 
 ```js
 (function(){
-var _$cycle = function r(r){var t;return function(){return t||r(t={exports:{}},t.exports),t.exports}};
-var _$a_1 = _$cycle(function (module, exports) {
+var createModuleFactory = function createModuleFactory(factory) {
+  var module; return function () { if (!module) { module = { exports: {} }; factory(module, module.exports) } return module.exports }
+};
+var _$a_1 = createModuleFactory(function (module, exports) {
 var b = _$b_3()
 module.exports = function () {
   return b()
 }
 
 });
-var _$b_3 = _$cycle(function (module, exports) {
+var _$b_3 = createModuleFactory(function (module, exports) {
 module.exports = function () {
   return _$a_1().toString()
 }
@@ -184,7 +186,7 @@ console.log(
 }());
 ```
 
-The `_$cycle` helper returns the exports of the module it wraps, evaluating the module on the first call.
+The `createModuleFactory` helper returns the exports of the module it wraps, evaluating the module on the first call.
 Instead of replacing `require('./a')` with `_$a_1` like browser-pack-flat normally would, it replaced it with `_$a_1()`.
 
 browser-pack-flat does some more things like rewriting top-level variables in modules in case there is another variable with the same name in another module, but that's most of the magic!
