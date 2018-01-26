@@ -1,1 +1,4 @@
+test/self.*.expected.js
+test/self.*.actual.js
+actual.js
 example/node_modules
