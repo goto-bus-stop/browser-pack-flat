@@ -1,15 +1,32 @@
 var test = require('tape')
-var assert = require('assert')
+var vm = require('vm')
 var fs = require('fs')
 var path = require('path')
 var browserify = require('browserify')
 var concat = require('concat-stream')
 var pack = require('../plugin')
 
-var tests = fs.readdirSync(__dirname).filter(function (name) {
-  return fs.statSync(path.join(__dirname, name)).isDirectory() &&
-    fs.existsSync(path.join(__dirname, name, 'app.js'))
-})
+var tests = [
+  'bare-module',
+  'colliding-unused',
+  'comment',
+  'dedupe',
+  'destructure',
+  'dynamic-require',
+  'eager-cycles',
+  'exports-name',
+  'globals',
+  'input-source-map',
+  'lazy-cycles',
+  'module-parent',
+  'remove-decl',
+  'set-exports',
+  'shorthand',
+  'simplify',
+  'source-map',
+  'standalone',
+  'variable'
+]
 
 tests.forEach(function (name) {
   test(name, function (t) {
@@ -44,3 +61,24 @@ function runTest (t, name) {
     t.end()
   }))
 }
+
+test('parent-cycle', function (t) {
+  t.plan(2)
+
+  var basedir = path.join(__dirname, 'parent-cycle')
+  var entry = path.join(basedir, 'app.js')
+  var actual = path.join(basedir, 'actual.js')
+
+  browserify(entry)
+    .plugin(pack)
+    .bundle(function (err, result) {
+      t.ifError(err)
+      fs.writeFileSync(actual, result)
+      vm.runInNewContext(result + '', {
+        console: { log: log }
+      })
+      function log (value) {
+        t.equal(value, 5)
+      }
+    })
+})

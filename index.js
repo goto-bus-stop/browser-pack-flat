@@ -206,7 +206,7 @@ function rewriteModule (row, i, rows) {
     if (req.external) {
       node.edit.update('require(' + JSON.stringify(req.id) + ')')
     } else if (other && other[kIsCyclical]) {
-      node.edit.update(other[kExportsName] + '()')
+      node.edit.update(other[kExportsName] + '({})') // `module.parent` value = {}
     } else if (other && other[kExportsName]) {
       renameImport(row, node, other[kExportsName])
     } else {
@@ -249,6 +249,14 @@ function flatten (rows, opts, stream) {
   rows.forEach(rewriteModule)
   moveCircularDependenciesToStart(rows)
 
+  // Initialize entry modules that are part of a dependency cycle.
+  for (var i = 0; i < rows.length; i++) {
+    if (rows[i].entry && rows[i][kIsCyclical]) {
+      outro += '\n' + rows[i][kExportsName] + '();'
+    }
+  }
+
+  // Expose modules on the global `require` function, or standalone as UMD
   var exposesModules = false
   for (var i = 0; i < rows.length; i++) {
     if (rows[i].expose && !opts.standalone) {

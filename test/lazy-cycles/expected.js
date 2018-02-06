@@ -1,16 +1,16 @@
 (function(){
 var createModuleFactory = function createModuleFactory(factory) {
   var module
-  return function () {
+  return function (parent) {
     if (!module) {
-      module = { exports: {} }
+      module = { exports: {}, parent: parent }
       factory(module, module.exports)
     }
     return module.exports
   }
 };
 var _$a_1 = createModuleFactory(function (module, exports) {
-var b = _$b_3()
+var b = _$b_3({})
 module.exports = function () {
   return b()
 }
@@ -18,13 +18,13 @@ module.exports = function () {
 });
 var _$b_3 = createModuleFactory(function (module, exports) {
 module.exports = function () {
-  return _$a_1().toString()
+  return _$a_1({}).toString()
 }
 
 });
 var _$app_2 = {};
 console.log(
-  _$a_1()()
+  _$a_1({})()
 )
 
 }());
