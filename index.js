@@ -28,6 +28,7 @@ var kMagicString = Symbol('magic string')
 var kSourceMap = Symbol('source map')
 var kDummyVars = Symbol('dummy replacement variables')
 
+// Parse the module and collect require() calls and exports assignments.
 function parseModule (row, index, rows) {
   // Holds the `module.exports` variable name.
   var moduleExportsName = toIdentifier('_$' + getModuleName(row.file || '') + '_' + row.id)
@@ -120,18 +121,6 @@ function parseModule (row, index, rows) {
     }
   }
 
-  // Mark global variables that collide with variable names from earlier modules so we can rewrite them.
-  var scope = scan.scope(ast)
-  if (scope) {
-    scan.scope(globalScope).getUndeclaredNames().forEach(function (name) {
-      rows.usedGlobalVariables.add(name)
-    })
-    scope.forEach(function (binding, name) {
-      binding.shouldRename = rows.usedGlobalVariables.has(name)
-      rows.usedGlobalVariables.add(name)
-    })
-  }
-
   row[kAst] = ast
   row[kIsSimpleExport] = isSimpleExport
   row[kExportsName] = moduleExportsName
@@ -143,6 +132,36 @@ function parseModule (row, index, rows) {
     'module.exports': moduleExportsList
   }
   row[kMagicString] = magicString
+}
+
+// Collect all global variables that are used in any module.
+// This is done separately from the next step (markDuplicateVariableNames)
+// so that global variables used in "later" modules, when colliding
+// with a module variable name in an "earlier" module, are correctly
+// deduped. See https://github.com/browserify/tinyify/issues/10
+function identifyGlobals (row, i, rows) {
+  var ast = row[kAst]
+  var globalScope = ast.parent
+
+  var scope = scan.scope(ast)
+  if (scope) {
+    scan.scope(globalScope).getUndeclaredNames().forEach(function (name) {
+      rows.usedGlobalVariables.add(name)
+    })
+  }
+}
+
+// Mark module variables that collide with variable names from other modules so we can rewrite them.
+function markDuplicateVariableNames (row, i, rows) {
+  var ast = row[kAst]
+
+  var scope = scan.scope(ast)
+  if (scope) {
+    scope.forEach(function (binding, name) {
+      binding.shouldRename = rows.usedGlobalVariables.has(name)
+      rows.usedGlobalVariables.add(name)
+    })
+  }
 }
 
 function rewriteModule (row, i, rows) {
@@ -246,6 +265,8 @@ function flatten (rows, opts, stream) {
   rows.exposeName = generateName(rows, 'exposedRequire')
   rows.createModuleFactoryName = generateName(rows, 'createModuleFactory')
   rows.forEach(parseModule)
+  rows.forEach(identifyGlobals)
+  rows.forEach(markDuplicateVariableNames)
   rows.forEach(rewriteModule)
   moveCircularDependenciesToStart(rows)
 
