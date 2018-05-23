@@ -1,7 +1,7 @@
-var yo = require('yo-yo')
+var html = require('nanohtml')
 
 module.exports = function render (props) {
-  return yo`
+  return html`
     <body>
       <div>${props.counter}</div>
       <button onclick=${onclick}>
