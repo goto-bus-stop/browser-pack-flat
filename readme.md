@@ -27,7 +27,7 @@ browserify /path/to/app.js | browser-unpack | browser-pack-flat
 Or as a plugin:
 
 ```bash
-browserify /path/to/app.js -p browser-pack-flat/plugin
+browserify /path/to/app.js -p browser-pack-flat
 ```
 
 The plugin replaces the `browser-pack` module used by default by browserify.
@@ -36,7 +36,7 @@ With the Node API:
 
 ```js
 var browserify = require('browserify')
-var packFlat = require('browser-pack-flat/plugin')
+var packFlat = require('browser-pack-flat')
 
 browserify({ entries: './src/app.js' })
   .plugin(packFlat, { /* options */ })

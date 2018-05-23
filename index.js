@@ -384,7 +384,10 @@ module.exports = function browserPackFlat(opts) {
   }
   // When used as a plugin
   if (opts && typeof opts.plugin === 'function') {
-    throw new Error('browser-pack-flat: to use as a plugin, require `browser-pack-flat/plugin`')
+    // Doing 'plu' + 'gin' so browserify doesn't detect this require() call
+    // when running the self-test. Workaround for this bug:
+    // https://github.com/browserify/browserify/issues/1260
+    return require('./plu' + 'gin').apply(null, arguments)
   }
 
   opts = opts || {}
