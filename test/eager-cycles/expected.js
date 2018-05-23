@@ -1,14 +1,5 @@
 (function(){
-var createModuleFactory = function createModuleFactory(factory) {
-  var module
-  return function (parent) {
-    if (!module) {
-      module = { exports: {}, parent: parent }
-      factory(module, module.exports)
-    }
-    return module.exports
-  }
-};
+var createModuleFactory = function createModuleFactory(t){var e;return function(r){return e||t(e={exports:{},parent:r},e.exports),e.exports}};
 var _$a_1 = createModuleFactory(function (module, exports) {
 exports.b = _$b_3
 exports.c = _$c_4({})

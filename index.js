@@ -1,5 +1,6 @@
 var pathParse = require('path-parse')
 var path = require('path')
+var fs = require('fs')
 var transformAst = require('transform-ast')
 var countLines = require('count-lines')
 var convertSourceMap = require('convert-source-map')
@@ -27,6 +28,9 @@ var kReferences = Symbol('module/exports references')
 var kMagicString = Symbol('magic string')
 var kSourceMap = Symbol('source map')
 var kDummyVars = Symbol('dummy replacement variables')
+
+var createModuleFactoryCode = fs.readFileSync(require.resolve('./_createModuleFactory'), 'utf8')
+var exposedRequireCode = fs.readFileSync(require.resolve('./_exposedRequire'), 'utf8')
 
 // Parse the module and collect require() calls and exports assignments.
 function parseModule (row, index, rows) {
@@ -300,7 +304,7 @@ function flatten (rows, opts, stream) {
   } else if (exposesModules) {
     intro += dedent`
       require = (function (require) {
-      var ${rows.exposeName} = ${require('./lib/exposedRequire')};
+      var ${rows.exposeName} = ${exposedRequireCode};
       ${rows.exposeName}.m = {};
       ${rows.exposeName}.r = require;
     `
@@ -315,7 +319,7 @@ function flatten (rows, opts, stream) {
 
   // Add the circular dependency runtime if necessary.
   if (containsCycles) {
-    intro += 'var ' + rows.createModuleFactoryName + ' = ' + require('./lib/createModuleFactory') + ';\n'
+    intro += 'var ' + rows.createModuleFactoryName + ' = ' + createModuleFactoryCode + ';\n'
   }
 
   var result = ''

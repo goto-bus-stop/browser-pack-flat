@@ -18,7 +18,10 @@ function unpackStream () {
 }
 
 function runBundleUnpack (packer) {
-  var b = browserify({ entries: path.join(__dirname, '../index') })
+  var b = browserify({
+    entries: path.join(__dirname, '../index'),
+    transform: 'brfs'
+  })
 
   return b.bundle()
     .pipe(unpackStream())
@@ -28,7 +31,8 @@ function runBundleUnpack (packer) {
 function runBundlePlugin (packer) {
   var b = browserify({
     entries: path.join(__dirname, '../plugin'),
-    standalone: 'packFlat'
+    standalone: 'packFlat',
+    transform: 'brfs'
   })
   b.plugin(packer)
 
