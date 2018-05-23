@@ -20,6 +20,7 @@ function unpackStream () {
 function runBundleUnpack (packer) {
   var b = browserify({
     entries: path.join(__dirname, '../index'),
+    node: true,
     transform: 'brfs'
   })
 
@@ -31,6 +32,7 @@ function runBundleUnpack (packer) {
 function runBundlePlugin (packer) {
   var b = browserify({
     entries: path.join(__dirname, '../plugin'),
+    node: true,
     standalone: 'packFlat',
     transform: 'brfs'
   })
