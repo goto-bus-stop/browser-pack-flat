@@ -194,6 +194,7 @@ browser-pack-flat does some more things like rewriting top-level variables in mo
 ## Related
 
  * [common-shakeify](https://github.com/goto-bus-stop/common-shakeify) - Tree-shaking plugin for browserify based on [@indutny](https://github.com/indutny)'s [common-shake](https://github.com/indutny/common-shake) library
+ * [tinyify](https://github.com/browserify/tinyify) - Optimization plugin for browserify, includes browser-pack-flat
 
 ## License
 
