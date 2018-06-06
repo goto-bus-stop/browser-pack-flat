@@ -28,6 +28,7 @@ var kReferences = Symbol('module/exports references')
 var kMagicString = Symbol('magic string')
 var kSourceMap = Symbol('source map')
 var kDummyVars = Symbol('dummy replacement variables')
+var kShouldRename = Symbol('should rename binding')
 
 var createModuleFactoryCode = fs.readFileSync(require.resolve('./_createModuleFactory'), 'utf8')
 var exposedRequireCode = fs.readFileSync(require.resolve('./_exposedRequire'), 'utf8')
@@ -162,7 +163,7 @@ function markDuplicateVariableNames (row, i, rows) {
   var scope = scan.scope(ast)
   if (scope) {
     scope.forEach(function (binding, name) {
-      binding.shouldRename = rows.usedGlobalVariables.has(name)
+      binding[kShouldRename] = rows.usedGlobalVariables.has(name)
       rows.usedGlobalVariables.add(name)
     })
   }
@@ -216,7 +217,7 @@ function rewriteModule (row, i, rows) {
     if (scan.scope(ast)) {
       // rename colliding global variable names
       scan.scope(ast).forEach(function (binding, name) {
-        if (binding.shouldRename) {
+        if (binding[kShouldRename]) {
           renameBinding(binding, toIdentifier('__' + name + '_' + row.id))
         }
       })
