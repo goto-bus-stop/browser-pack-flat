@@ -521,9 +521,19 @@ function renameBinding (binding, newName) {
 // Remove a variable declarator -- remove the declaration entirely if it is the only one,
 // otherwise replace with a dummy declarator
 function removeVariableDeclarator (row, decl) {
-  if (decl.parent.type === 'VariableDeclaration' && decl.parent.declarations.length === 1) {
-    var removed = decl.parent.getSource()
-    decl.parent.edit.update(wrapComment('removed: ' + removed) + ';')
+  if (decl.parent.type === 'VariableDeclaration') {
+    var i = decl.parent.declarations.indexOf(decl)
+    if (decl.parent.declarations.length === 1) {
+      var removed = decl.parent.getSource()
+      decl.parent.edit.update(wrapComment('removed: ' + removed) + ';')
+    } else if (i === decl.parent.declarations.length - 1) {
+      // Remove ", a = 1"
+      row[kMagicString].overwrite(decl.parent.declarations[i - 1].end, decl.end, '')
+    } else {
+      // Remove "a = 1, "
+      row[kMagicString].overwrite(decl.start, decl.parent.declarations[i + 1].start, '')
+    }
+    decl.parent.declarations.splice(i, 1)
   } else {
     if (!row[kDummyVars]) row[kDummyVars] = 0
     var id = '__dummy_' + row.index + '$' + row[kDummyVars]
