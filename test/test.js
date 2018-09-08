@@ -29,7 +29,7 @@ var tests = [
 ]
 
 tests.forEach(function (name) {
-  test(name, function (t) {
+  test(name, { skip: /^v4/.test(process.version) && name === 'input-source-map' }, function (t) {
     runTest(t, name)
   })
 })
