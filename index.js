@@ -14,7 +14,7 @@ var combiner = require('stream-combiner')
 var scan = require('scope-analyzer')
 var toIdentifier = require('./private_modules/identifierfy')
 var wrapComment = require('wrap-comment')
-var isRequire = require('is-require')()
+var isRequire = require('estree-is-require')
 var isMemberExpression = require('estree-is-member-expression')
 
 var dedupedRx = /^arguments\[4\]\[(\d+)\]/
