@@ -21,7 +21,7 @@
     "count-lines": "^0.1.2",
     "dedent": "^0.7.0",
     "estree-is-member-expression": "^1.0.0",
-    "identifierfy": "^2.0.0",
+    "esutils": "^2.0.2",
     "is-require": "0.0.1",
     "path-parse": "^1.0.5",
     "scope-analyzer": "^2.0.0",
