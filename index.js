@@ -313,7 +313,7 @@ function flatten (rows, opts, stream) {
       return ${rows.exposeName};
       }(typeof require === 'function' ? require : void 0));
     `
-  } else {
+  } else if (opts.iife || opts.iife == undefined) {
     intro += '(function(){\n'
     outro += '\n}());'
   }
