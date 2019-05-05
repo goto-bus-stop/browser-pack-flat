@@ -11,6 +11,7 @@ var tests = [
   'colliding-unused',
   'comment',
   'dedupe',
+  'dep-order',
   'destructure',
   'dynamic-require',
   'eager-cycles',

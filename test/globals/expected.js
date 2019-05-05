@@ -1,16 +1,16 @@
 (function(){
-var _$fn_2 = {};
-function globalFunction () {
-  var globalFunction = null
-  !function globalFunction () { return null }()
-}
-
 var _$other_3 = {};
 var somevar = 1
 console.log(somevar)
 
-function __globalFunction_3 () {
+function globalFunction () {
   function somevar () {}
+}
+
+var _$fn_2 = {};
+function __globalFunction_2 () {
+  var globalFunction = null
+  !function globalFunction () { return null }()
 }
 
 var _$app_1 = {};

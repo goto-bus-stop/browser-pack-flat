@@ -9,7 +9,6 @@ var through = require('through2')
 var umd = require('umd')
 var dedent = require('dedent')
 var json = require('JSONStream')
-var toposort = require('./toposort')
 var combiner = require('stream-combiner')
 var scan = require('scope-analyzer')
 var toIdentifier = require('./private_modules/identifierfy')
@@ -24,6 +23,7 @@ var kAst = Symbol('ast')
 var kIsSimpleExport = Symbol('is simple export')
 var kExportsName = Symbol('exports variable name')
 var kRequireCalls = Symbol('require calls')
+var kDependencyOrder = Symbol('dependency order of execution sort value')
 var kReferences = Symbol('module/exports references')
 var kMagicString = Symbol('magic string')
 var kSourceMap = Symbol('source map')
@@ -50,6 +50,7 @@ function parseModule (row, index, rows, opts) {
   }
 
   var requireCalls = []
+  var orderOfExecution = new Map()
 
   var ast
   // hack to keep track of `module`/`exports` references correctly.
@@ -78,6 +79,7 @@ function parseModule (row, index, rows, opts) {
     if (isRequire(node)) {
       var argument = node.arguments[0]
       var required = argument.type === 'Literal' ? argument.value : null
+
       if (required !== null && moduleExists(row.deps[required])) {
         var other = rows.byId[row.deps[required]]
         requireCalls.push({
@@ -91,6 +93,10 @@ function parseModule (row, index, rows, opts) {
           id: row.deps[required] || required,
           node: node
         })
+      }
+
+      if (required !== null) {
+        orderOfExecution.set(row.deps[required] || required, node.end)
       }
 
       function moduleExists (id) {
@@ -132,12 +138,88 @@ function parseModule (row, index, rows, opts) {
   row[kExportsName] = moduleExportsName
   row.hasExports = (moduleExportsList.length + exportsList.length) > 0
   row[kRequireCalls] = requireCalls
+  row[kDependencyOrder] = orderOfExecution
   row[kReferences] = {
     module: moduleList,
     exports: exportsList,
     'module.exports': moduleExportsList
   }
   row[kMagicString] = magicString
+}
+
+function sortModules (rows) {
+  var index = new Map()
+  var mod
+  while ((mod = rows.pop())) {
+    index.set(mod.id, mod)
+  }
+
+  function compareDependencySortOrder (a, b) {
+    // Sort dependencies by the order of their require() calls
+    var ao = typeof a.dependencyOrder === 'number'
+    var bo = typeof b.dependencyOrder === 'number'
+    if (ao && bo) {
+      return a.dependencyOrder < b.dependencyOrder ? -1 : 1
+    }
+    if (ao && !bo) return -1
+    if (!ao && bo) return 1
+
+    return compareModuleSortOrder(a.module, b.module)
+  }
+
+  var modules = Array.from(index.values()).sort(compareModuleSortOrder)
+  var seen = new Set()
+
+  function visit (mod) {
+    if (seen.has(mod.id)) return
+    seen.add(mod.id)
+    if (hasDeps(mod)) {
+      values(mod.deps)
+        .map(function attachSortOrder (id) {
+          var dep = index.get(id)
+          if (dep) {
+            return {
+              module: dep,
+              dependencyOrder: mod[kDependencyOrder] ? mod[kDependencyOrder].get(id) : undefined
+            }
+          }
+        })
+        .filter(Boolean)
+        .sort(compareDependencySortOrder)
+        .forEach(function (dep) { visit(dep.module) })
+    }
+    rows.push(mod)
+  }
+
+  modules.forEach(visit)
+}
+
+function values (obj) {
+  var result = []
+  for (var k in obj) { result.push(obj[k]) }
+  return result
+}
+
+function hasDeps (mod) {
+  return mod.deps && Object.keys(mod.deps).length > 0
+}
+
+function compareModuleSortOrder (a, b) {
+  // Float entry modules to the top.
+  if (a.entry && !b.entry) return -1
+  if (!a.entry && b.entry) return 1
+  // Sort entry modules by their `.order`.
+  var ao = typeof a.order === 'number'
+  var bo = typeof b.order === 'number'
+  if (ao && bo) {
+    return a.order < b.order ? -1 : 1
+  }
+  // Modules that have an `.order` go before modules that do not.
+  if (ao && !bo) return -1
+  if (!ao && bo) return 1
+
+  // Else sort by ID, so that output is stable.
+  return a.id < b.id ? -1 : 1
 }
 
 // Collect all global variables that are used in any module.
@@ -273,6 +355,7 @@ function flatten (rows, opts, stream) {
   rows.forEach(function (row, index, rows) {
     parseModule(row, index, rows, opts)
   })
+  sortModules(rows)
   rows.forEach(identifyGlobals)
   rows.forEach(markDuplicateVariableNames)
   rows.forEach(rewriteModule)
@@ -399,11 +482,10 @@ module.exports = function browserPackFlat(opts) {
   var rows = []
 
   var packer = through.obj(onwrite, onend)
-  var stream = combiner([
-    !opts.raw ? json.parse([ true ]) : null,
-    toposort(),
+  var stream = opts.raw ? packer : combiner([
+    json.parse([ true ]),
     packer
-  ].filter(Boolean))
+  ])
 
   return stream
 

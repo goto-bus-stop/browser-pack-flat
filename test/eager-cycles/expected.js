@@ -9,9 +9,9 @@ var _$c_4 = createModuleFactory(function (module, exports) {
 module.exports = 10 + _$a_1({}).b
 
 });
-var _$b_3 = 10
-
 var _$d_5 = 'hello'
+
+var _$b_3 = 10
 
 var _$e_6 = 'world'
 
