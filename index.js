@@ -84,6 +84,14 @@ function parseModule (row, index, rows, opts) {
         }
       }
 
+      // if(require('d')) is still in-order
+      // the same is technically true for while(require()) and for(require();;) but those are more rare
+      if (node.parent && node.parent.type === 'IfStatement' && node.parent.test === node) {
+        // Skip the IfStatement
+        node = node.parent
+        continue
+      }
+
       if (node.type === 'IfStatement' || // if(false) require()
           node.type === 'WhileStatement' || // while(false) require()
           node.type === 'ForStatement' || // for(;false;) require()
