@@ -156,10 +156,10 @@ function sortModules (rows) {
 
   function compareDependencySortOrder (a, b) {
     // Sort dependencies by the order of their require() calls
-    var ao = typeof a.order === 'number'
-    var bo = typeof b.order === 'number'
+    var ao = typeof a.dependencyOrder === 'number'
+    var bo = typeof b.dependencyOrder === 'number'
     if (ao && bo) {
-      return a.order < b.order ? -1 : 1
+      return a.dependencyOrder < b.dependencyOrder ? -1 : 1
     }
     if (ao && !bo) return -1
     if (!ao && bo) return 1
@@ -180,7 +180,7 @@ function sortModules (rows) {
           if (dep) {
             return {
               module: dep,
-              order: mod[kDependencyOrder] ? mod[kDependencyOrder].get(id) : undefined
+              dependencyOrder: mod[kDependencyOrder] ? mod[kDependencyOrder].get(id) : undefined
             }
           }
         })
