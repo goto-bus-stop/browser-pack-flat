@@ -1,7 +1,7 @@
 (function(){
-var _$ThisIsAClass_2 = class ThisIsAClass {}
-
 var _$thisIsAFunction_3 = function thisIsAFunction () {}
+
+var _$ThisIsAClass_2 = class ThisIsAClass {}
 
 var _$thisIsAReference_4 = thisIsAReference
 
