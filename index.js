@@ -19,7 +19,7 @@ var isMemberExpression = require('estree-is-member-expression')
 
 var dedupedRx = /^arguments\[4\]\[(\d+)\]/
 
-var kIsCyclical = Symbol('is part of cyclical dep chain')
+var kEvaluateOnDemand = Symbol('evaluate on demand')
 var kAst = Symbol('ast')
 var kIsSimpleExport = Symbol('is simple export')
 var kExportsName = Symbol('exports variable name')
@@ -63,6 +63,43 @@ function parseModule (row, index, rows, opts) {
 
   var source = row.source
 
+  // Determine if a require() call may not be evaluated according to its linear source position
+  // This happens primarily if the call is inside a function, or inside a conditional branch
+  function isOrderUnpredictable (node) {
+    while ((node = node.parent)) {
+      // Special-case for IIFE, behaviour is the same as evaluating inline
+      if (node.type === 'FunctionExpression' || node.type === 'ArrowFunctionExpression') {
+        // (() => {})()
+        if (node.parent && node.parent.type === 'CallExpression' && node.parent.callee === node) {
+          continue
+        }
+        // (function(){}).call(null)
+        // this form is added by browserify to inject globals
+        if (node.parent && node.parent.type === 'MemberExpression' &&
+            node.parent.object === node &&
+            (node.parent.property.name === 'call' || node.parent.property.name === 'apply') &&
+            node.parent.parent && node.parent.parent.type === 'CallExpression') {
+          continue
+        }
+      }
+
+      if (node.type === 'IfStatement' || // if(false) require()
+          node.type === 'WhileStatement' || // while(false) require()
+          node.type === 'ForStatement' || // for(;false;) require()
+          node.type === 'ForInStatement' || // for(x in []) require()
+          node.type === 'FunctionExpression' || // setTimeout(function(){ require() })
+          node.type === 'FunctionDeclaration' || // function neverCalled(){ require() }
+          node.type === 'ArrowFunctionExpression' // setTimeout(()=> require())
+      ) {
+        return true
+      }
+    }
+    return false
+  }
+
+  // Keep track of modules that were already evaluated in a predictable order so that multiple
+  // require('a') occurences don't force 'a' to become on-demand
+  var alreadyPredictablyEvaluated = new Set()
   // we'll do two walks along the AST in order to detect variables and their references.
   // we initialise the scopes and declarations in the first one here, and then collect
   // references in the second.
@@ -80,6 +117,13 @@ function parseModule (row, index, rows, opts) {
       var required = argument.type === 'Literal' ? argument.value : null
       if (required !== null && moduleExists(row.deps[required])) {
         var other = rows.byId[row.deps[required]]
+        if (isOrderUnpredictable(node)) {
+          if (!alreadyPredictablyEvaluated.has(other)) {
+            other[kEvaluateOnDemand] = true
+          }
+        } else {
+          alreadyPredictablyEvaluated.add(other)
+        }
         requireCalls.push({
           id: row.deps[required],
           node: node,
@@ -192,7 +236,7 @@ function rewriteModule (row, i, rows) {
     moduleExportsName += '.exports'
   }
 
-  if (!row[kIsCyclical]) { // cycles have a function wrapper and don't need to be rewritten
+  if (!row[kEvaluateOnDemand]) { // on-demand modules have a function wrapper and don't need to be rewritten
     moduleExportsList.concat(exportsList).forEach(function (node) {
       if (row[kIsSimpleExport]) {
         // var $moduleExportsName = xyz
@@ -230,7 +274,7 @@ function rewriteModule (row, i, rows) {
     var other = req.requiredModule
     if (req.external) {
       node.edit.update('require(' + JSON.stringify(req.id) + ')')
-    } else if (other && other[kIsCyclical]) {
+    } else if (other && other[kEvaluateOnDemand]) {
       node.edit.update(other[kExportsName] + '({})') // `module.parent` value = {}
     } else if (other && other[kExportsName]) {
       renameImport(row, node, other[kExportsName])
@@ -240,7 +284,7 @@ function rewriteModule (row, i, rows) {
     }
   })
 
-  if (row[kIsCyclical]) {
+  if (row[kEvaluateOnDemand]) {
     magicString.prepend('var ' + row[kExportsName] + ' = ' + rows.createModuleFactoryName + '(function (module, exports) {\n')
     magicString.append('\n});')
   } else if (moduleBaseName) {
@@ -276,11 +320,12 @@ function flatten (rows, opts, stream) {
   rows.forEach(identifyGlobals)
   rows.forEach(markDuplicateVariableNames)
   rows.forEach(rewriteModule)
-  moveCircularDependenciesToStart(rows)
+  moveOnDemandModulesToStart(rows)
 
-  // Initialize entry modules that are part of a dependency cycle.
+  // Initialize entry modules that are marked as on-demand (because of a dependency cycle
+  // or a conditional require() call)
   for (var i = 0; i < rows.length; i++) {
-    if (rows[i].entry && rows[i][kIsCyclical]) {
+    if (rows[i].entry && rows[i][kEvaluateOnDemand]) {
       outro += '\n' + rows[i][kExportsName] + '();'
     }
   }
@@ -321,8 +366,8 @@ function flatten (rows, opts, stream) {
     outro += '\n}());'
   }
 
-  // Add the circular dependency runtime if necessary.
-  if (containsCycles) {
+  // Add the circular dependency/on-demand runtime if necessary.
+  if (rows.some(function (mod) { return mod[kEvaluateOnDemand] })) {
     intro += 'var ' + rows.createModuleFactoryName + ' = ' + createModuleFactoryCode + ';\n'
   }
 
@@ -459,14 +504,14 @@ function detectCycles (rows) {
 
   // mark cyclical dependencies
   for (var i = 0; i < rows.length; i++) {
-    rows[i][kIsCyclical] = cyclicalModules.has(rows[i])
+    rows[i][kEvaluateOnDemand] = cyclicalModules.has(rows[i])
   }
   return cyclicalModules.size > 0
 }
 
-function moveCircularDependenciesToStart (rows) {
+function moveOnDemandModulesToStart (rows) {
   for (var i = 0; i < rows.length; i++) {
-    if (rows[i][kIsCyclical]) {
+    if (rows[i][kEvaluateOnDemand]) {
       var row = rows.splice(i, 1)[0]
       rows.unshift(row)
     }
