@@ -19,6 +19,7 @@ var tests = [
   'globals',
   'input-source-map',
   'lazy-cycles',
+  'lazy-order',
   'module-parent',
   'remove-decl',
   'set-exports',

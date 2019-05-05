@@ -11,7 +11,7 @@ var _$app_1 = {};
 console.log(
   _$thisIsAFunction_3.name,
   _$ThisIsAClass_2.name,
-  function () { _$thisIsAReference_4 }.toString()
+  _$thisIsAReference_4.name
 )
 
 }());
