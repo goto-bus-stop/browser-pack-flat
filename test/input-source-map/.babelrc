@@ -1,6 +1,6 @@
 {
   "plugins": [
-    "transform-es2015-modules-commonjs",
-    "nanohtml"
+    "@babel/plugin-transform-modules-commonjs",
+    "module:nanohtml"
   ]
 }
