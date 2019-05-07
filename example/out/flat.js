@@ -827,15 +827,6 @@ var _$appendChild_4 = function appendChild (el, childs) {
   }
 }
 
-var _$boolProps_5 = [
-  'autofocus', 'checked', 'defaultchecked', 'disabled', 'formnovalidate',
-  'indeterminate', 'readonly', 'required', 'selected', 'willvalidate'
-]
-
-var _$directProps_7 = [
-  'indeterminate'
-]
-
 var _$svgTags_8 = [
   'svg', 'altGlyph', 'altGlyphDef', 'altGlyphItem', 'animate', 'animateColor',
   'animateMotion', 'animateTransform', 'circle', 'clipPath', 'color-profile',
@@ -851,6 +842,15 @@ var _$svgTags_8 = [
   'mpath', 'path', 'pattern', 'polygon', 'polyline', 'radialGradient', 'rect',
   'set', 'stop', 'switch', 'symbol', 'text', 'textPath', 'title', 'tref',
   'tspan', 'use', 'view', 'vkern'
+]
+
+var _$boolProps_5 = [
+  'autofocus', 'checked', 'defaultchecked', 'disabled', 'formnovalidate',
+  'indeterminate', 'readonly', 'required', 'selected', 'willvalidate'
+]
+
+var _$directProps_7 = [
+  'indeterminate'
 ]
 
 var _$browser_6 = {};
