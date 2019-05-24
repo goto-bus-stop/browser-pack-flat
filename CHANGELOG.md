@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## 3.4.1
+ * Inline result of `typeof require`, which is used by some UMD headers. (#38)
+
 ## 3.4.0
  * Sort dependencies by source order location, now execution order should be much more consistent between Node.js and browser-pack-flat
  * Prevent inlining conditional and lazy `require()` calls:
