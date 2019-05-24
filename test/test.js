@@ -27,6 +27,7 @@ var tests = [
   'simplify',
   'source-map',
   'standalone',
+  'typeof-require',
   'variable'
 ]
 

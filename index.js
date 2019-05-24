@@ -60,7 +60,7 @@ function parseModule (row, index, rows, opts) {
     type: 'BrowserPackFlatWrapper',
     parent: null
   }
-  scan.createScope(globalScope, ['module', 'exports'])
+  scan.createScope(globalScope, ['require', 'module', 'exports'])
 
   var source = row.source
 
@@ -162,6 +162,7 @@ function parseModule (row, index, rows, opts) {
     scan.visitBinding(node)
   })
 
+  var requireList = scan.scope(globalScope).getReferences('require')
   var moduleExportsList = scan.scope(globalScope).getReferences('module')
     .map(function (node) { return node.parent })
     .filter(isModuleExports)
@@ -192,6 +193,7 @@ function parseModule (row, index, rows, opts) {
   row[kRequireCalls] = requireCalls
   row[kDependencyOrder] = orderOfExecution
   row[kReferences] = {
+    require: requireList,
     module: moduleList,
     exports: exportsList,
     'module.exports': moduleExportsList
@@ -313,6 +315,7 @@ function rewriteModule (row, i, rows) {
   var moduleList = row[kReferences].module
   var moduleExportsList = row[kReferences]['module.exports']
   var exportsList = row[kReferences].exports
+  var requireList = row[kReferences].require
 
   // If `module` is used as a free variable we need to turn it into an object with an `.exports`
   // property, to deal with situations like:
@@ -325,6 +328,13 @@ function rewriteModule (row, i, rows) {
     moduleBaseName = moduleExportsName
     moduleExportsName += '.exports'
   }
+
+  // inline "typeof require", because it will usually not be available at runtime
+  requireList.forEach(function (node) {
+    if (node.parent.type === 'UnaryExpression' && node.parent.operator === 'typeof') {
+      node.parent.edit.update('"function"')
+    }
+  })
 
   if (!row[kEvaluateOnDemand]) { // on-demand modules have a function wrapper and don't need to be rewritten
     moduleExportsList.concat(exportsList).forEach(function (node) {
