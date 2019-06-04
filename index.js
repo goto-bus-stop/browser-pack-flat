@@ -436,7 +436,13 @@ function flatten (rows, opts, stream) {
   for (var i = 0; i < rows.length; i++) {
     if (rows[i].expose && !opts.standalone) {
       exposesModules = true
-      outro += '\n' + rows.exposeName + '.m[' + JSON.stringify(rows[i].id) + '] = ' + rows[i][kExportsName] + ';'
+      if (rows[i][kEvaluateOnDemand]) {
+        // If the module is evaluated on demand, using a function, define
+        // a getter so the function will be called.
+        outro += '\nObject.defineProperty(' + rows.exposeName + '.m, ' + JSON.stringify(rows[i].id) + ', { get: function() { return ' + rows[i][kExportsName] + '({}); }});'
+      } else {
+        outro += '\n' + rows.exposeName + '.m[' + JSON.stringify(rows[i].id) + '] = ' + rows[i][kExportsName] + ';'
+      }
     }
 
     var isEntryModule = rows[i].entry && rows[i].hasExports && opts.standalone
