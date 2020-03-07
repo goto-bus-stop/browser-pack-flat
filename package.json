@@ -39,7 +39,7 @@
     "browser-unpack": "^1.2.0",
     "browserify": "^16.3.0",
     "concat-stream": "^2.0.0",
-    "nanohtml": "1.6.1",
+    "nanohtml": "1.9.1",
     "sliced": "^1.0.1",
     "tape": "^4.11.0",
     "uglify-js": "3.6.0"
