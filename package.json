@@ -41,7 +41,7 @@
     "concat-stream": "^2.0.0",
     "nanohtml": "1.6.1",
     "sliced": "^1.0.1",
-    "tape": "^4.11.0",
+    "tape": "^5.0.0",
     "uglify-js": "3.6.0"
   },
   "directories": {
