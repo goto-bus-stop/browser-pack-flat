@@ -37,7 +37,7 @@
     "babelify": "^10.0.0",
     "brfs": "^2.0.2",
     "browser-unpack": "^1.2.0",
-    "browserify": "^16.3.0",
+    "browserify": "^17.0.0",
     "concat-stream": "^2.0.0",
     "nanohtml": "1.6.1",
     "sliced": "^1.0.1",
