@@ -113,7 +113,7 @@ function parseModule (row, index, rows, opts) {
   // we initialise the scopes and declarations in the first one here, and then collect
   // references in the second.
   var magicString = transformAst(source, {
-    ecmaVersion: 9,
+    ecmaVersion: opts.ecmaVersion !== undefined ? opts.ecmaVersion : 10,
     inputFilename: row.sourceFile,
     sourceType: opts.sourceType || 'script'
   }, function (node) {
