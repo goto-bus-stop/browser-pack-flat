@@ -19,7 +19,7 @@
     "combine-source-map": "^0.8.0",
     "convert-source-map": "^1.5.1",
     "count-lines": "^0.1.2",
-    "dedent": "^0.7.0",
+    "dedent": "^1.5.0",
     "estree-is-member-expression": "^1.0.0",
     "estree-is-require": "^1.0.0",
     "esutils": "^2.0.2",
